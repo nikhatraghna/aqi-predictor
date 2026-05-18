@@ -1,5 +1,32 @@
 
+# Environment Variables
 .env
+
+# Python Cache
 __pycache__/
 *.pyc
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Data
+data/
+*.parquet
+*.csv
+
+# Logs
+logs/
+
+# Models
+*.pkl
+*.joblib
+*.h5
+*.pt
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
