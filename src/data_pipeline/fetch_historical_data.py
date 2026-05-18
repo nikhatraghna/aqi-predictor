@@ -15,8 +15,10 @@ ISLAMABAD_LON  = 73.0479
 BASE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 # Last 12 months (Open-Meteo has ~5 day lag)
-END_DT   = datetime.now() - timedelta(days=5)
-START_DT = datetime(END_DT.year - 1, END_DT.month, END_DT.day)
+# Last 3 months
+END_DT = datetime.now() - timedelta(days=5)
+# Last 3 months
+START_DT = END_DT - timedelta(days=90)
 
 OUTPUT_PATH = "data/raw/islamabad_historical_weather.parquet"
 
