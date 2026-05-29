@@ -32,3 +32,7 @@ Thumbs.db
 .idea/
 data/raw/
 data/processed/
+
+reports/
+
+models/metrics/
