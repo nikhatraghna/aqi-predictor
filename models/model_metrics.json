@@ -1,22 +1,26 @@
-{
-    "ridge": {
-        "mae": 1.88,
-        "rmse": 2.93,
-        "r2": 0.9737
+[
+    {
+        "Model": "xgboost",
+        "MAE": 1.1278,
+        "RMSE": 1.6485,
+        "R2": 0.9881
     },
-    "xgboost": {
-        "mae": 2.43,
-        "rmse": 3.8,
-        "r2": 0.956
+    {
+        "Model": "random_forest",
+        "MAE": 1.3818,
+        "RMSE": 2.0333,
+        "R2": 0.9819
     },
-    "random_forest": {
-        "mae": 2.74,
-        "rmse": 4.02,
-        "r2": 0.9507
+    {
+        "Model": "ridge",
+        "MAE": 1.7644,
+        "RMSE": 2.8299,
+        "R2": 0.9649
     },
-    "prophet": {
-        "mae": 14.85,
-        "rmse": 17.43,
-        "r2": 0.0736
+    {
+        "Model": "prophet",
+        "MAE": 18.1001,
+        "RMSE": 21.5389,
+        "R2": -1.034
     }
-}
+]

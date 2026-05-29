@@ -1,0 +1,25 @@
+{
+    "timestamp": "2026-05-29T13:40:52.750845+00:00",
+    "overall_status": "DRIFT",
+    "emoji": "\ud83d\udd34",
+    "performance": {
+        "current": {
+            "mae": 1.8894,
+            "rmse": 2.9325,
+            "r2": 0.9738
+        },
+        "baseline": {
+            "mae": 1.88,
+            "rmse": 2.93,
+            "r2": 0.9737
+        },
+        "rmse_degradation_pct": 0.09,
+        "mae_degradation_pct": 0.5,
+        "status": "NORMAL"
+    },
+    "distribution": {
+        "ks_pvalue": 0.0,
+        "psi": 175.7186,
+        "status": "DRIFT"
+    }
+}

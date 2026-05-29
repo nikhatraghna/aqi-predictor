@@ -1,0 +1,92 @@
+[
+    {
+        "feature": "temperature",
+        "ks_stat": 0.0934,
+        "ks_pvalue": 0.5493,
+        "psi": 0.1318,
+        "mean_shift": 0.9378,
+        "std_shift": 0.2571,
+        "status": "\ud83d\udfe1 WARNING"
+    },
+    {
+        "feature": "humidity",
+        "ks_stat": 0.0939,
+        "ks_pvalue": 0.5427,
+        "psi": 0.1385,
+        "mean_shift": 3.5479,
+        "std_shift": 0.7109,
+        "status": "\ud83d\udfe1 WARNING"
+    },
+    {
+        "feature": "pressure",
+        "ks_stat": 0.0857,
+        "ks_pvalue": 0.6562,
+        "psi": 0.9437,
+        "mean_shift": 0.005,
+        "std_shift": 0.4893,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    },
+    {
+        "feature": "wind_speed",
+        "ks_stat": 0.1149,
+        "ks_pvalue": 0.2953,
+        "psi": 0.2725,
+        "mean_shift": 0.1153,
+        "std_shift": 0.0309,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    },
+    {
+        "feature": "pm25_lag_1",
+        "ks_stat": 0.1054,
+        "ks_pvalue": 0.3968,
+        "psi": 0.4978,
+        "mean_shift": 2.0302,
+        "std_shift": 0.6696,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    },
+    {
+        "feature": "pm25_lag_3",
+        "ks_stat": 0.057,
+        "ks_pvalue": 0.9687,
+        "psi": 0.3344,
+        "mean_shift": 0.6751,
+        "std_shift": 1.5449,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    },
+    {
+        "feature": "pm25_lag_6",
+        "ks_stat": 0.091,
+        "ks_pvalue": 0.5823,
+        "psi": 0.8584,
+        "mean_shift": 2.2273,
+        "std_shift": 3.7128,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    },
+    {
+        "feature": "pm25_lag_24",
+        "ks_stat": 0.1164,
+        "ks_pvalue": 0.2817,
+        "psi": 0.1746,
+        "mean_shift": 0.6377,
+        "std_shift": 0.5919,
+        "status": "\ud83d\udfe1 WARNING"
+    },
+    {
+        "feature": "pm25_roll_mean_3",
+        "ks_stat": 0.1456,
+        "ks_pvalue": 0.0951,
+        "psi": 0.385,
+        "mean_shift": 1.9656,
+        "std_shift": 0.8673,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    },
+    {
+        "feature": "pm25_roll_mean_24",
+        "ks_stat": 0.0977,
+        "ks_pvalue": 0.4916,
+        "psi": 0.2556,
+        "mean_shift": 0.0564,
+        "std_shift": 0.7623,
+        "status": "\ud83d\udd34 DRIFT DETECTED"
+    }
+]

@@ -1,77 +1,54 @@
-"""Select best AQI forecasting model."""
+"""Select best AQI forecasting model and deploy to models/best_model/."""
 
 import json
+import shutil
 from pathlib import Path
 
+BEST_MODEL_FILE = "models/best_model.json"
+MODEL_DIR       = Path("models/saved_models")
+BEST_MODEL_DIR  = Path("models/best_model")
 
-METRICS_PATH = "models/model_metrics.json"
+BEST_MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
+# Load best model name
+with open(BEST_MODEL_FILE, "r") as f:
+    best_model = json.load(f)["best_model"]
 
-def main():
+print(f"\n[SUCCESS] Best model selected: {best_model}")
 
-    print("\n[INFO] Loading model metrics...")
+MODEL_MAP = {
+    "ridge": {
+        "model":  MODEL_DIR / "ridge_model.pkl",
+        "scaler": MODEL_DIR / "ridge_scaler.pkl",
+    },
+    "random_forest": {
+        "model": MODEL_DIR / "random_forest_model.pkl",
+    },
+    "xgboost": {
+        "model": MODEL_DIR / "xgboost_model.pkl",
+    },
+    "prophet": {
+        "model": MODEL_DIR / "prophet_model.pkl",
+    },
+}
 
-    with open(METRICS_PATH, "r") as f:
-        metrics = json.load(f)
+selected = MODEL_MAP[best_model]
 
-    print("\n=================================================")
-    print(" MODEL COMPARISON ")
-    print("=================================================")
+# --- Copy model ---
+shutil.copy(selected["model"], BEST_MODEL_DIR / "model.pkl")
+print(f"[SUCCESS] Model copied → {BEST_MODEL_DIR / 'model.pkl'}")
 
-    for model_name, vals in metrics.items():
+# --- Copy scaler only if it exists (Ridge only) ---
+scaler_src = selected.get("scaler")
+scaler_dst = BEST_MODEL_DIR / "scaler.pkl"
 
-        print(
-            f"{model_name:<20}"
-            f"RMSE={vals['rmse']:.4f}   "
-            f"MAE={vals['mae']:.4f}   "
-            f"R2={vals['r2']:.4f}"
-        )
+if scaler_src and Path(scaler_src).exists():
+    shutil.copy(scaler_src, scaler_dst)
+    print(f"[SUCCESS] Scaler copied → {scaler_dst}")
+else:
+    # Remove stale scaler from a previous Ridge run
+    if scaler_dst.exists():
+        scaler_dst.unlink()
+        print("[INFO] Removed stale scaler (not needed for this model).")
 
-    # ---------------------------------------------------
-    # Select best model using RMSE
-    # ---------------------------------------------------
-
-    best_model = min(
-        metrics,
-        key=lambda x: metrics[x]["rmse"]
-    )
-
-    best_metrics = metrics[best_model]
-
-    print("\n=================================================")
-    print(f" BEST MODEL: {best_model}")
-    print("=================================================")
-
-    # ---------------------------------------------------
-    # Save best model name
-    # ---------------------------------------------------
-
-    Path("models").mkdir(exist_ok=True)
-
-    with open("models/best_model.json", "w") as f:
-
-        json.dump(
-            {
-                "best_model": best_model
-            },
-            f,
-            indent=4,
-        )
-
-    # ---------------------------------------------------
-    # Save best metrics
-    # ---------------------------------------------------
-
-    with open("models/best_model_metrics.json", "w") as f:
-
-        json.dump(
-            best_metrics,
-            f,
-            indent=4,
-        )
-
-    print("\n[SUCCESS] Best model saved.")
-
-
-if __name__ == "__main__":
-    main()
+print("\n[SUCCESS] Best model artifacts prepared.")
