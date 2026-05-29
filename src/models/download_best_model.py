@@ -1,3 +1,4 @@
+
 """
 Download the current best model
 from Hopsworks Model Registry.
@@ -7,16 +8,22 @@ import json
 import shutil
 from pathlib import Path
 
-from src.models.hopsworks_model_registry import get_model_registry
+from src.models.hopsworks_model_registry import (
+    get_model_registry,
+)
 
 
 # ─────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────
 
-DOWNLOAD_DIR = Path("models/registry_downloads")
+DOWNLOAD_DIR = Path(
+    "models/registry_downloads"
+)
 
-BEST_MODEL_FILE = Path("models/best_model.json")
+BEST_MODEL_FILE = Path(
+    "models/best_model.json"
+)
 
 
 # ─────────────────────────────────────────
@@ -26,9 +33,13 @@ BEST_MODEL_FILE = Path("models/best_model.json")
 def get_best_model_name():
 
     if not BEST_MODEL_FILE.exists():
-        raise FileNotFoundError(f"Missing file: {BEST_MODEL_FILE}")
+
+        raise FileNotFoundError(
+            f"Missing file: {BEST_MODEL_FILE}"
+        )
 
     with open(BEST_MODEL_FILE, "r") as f:
+
         data = json.load(f)
 
     return data["best_model"]
@@ -44,39 +55,57 @@ def download_best_model():
 
     mr = get_model_registry()
 
-    # Get best model name
+    # Get selected best model
+
     best_model_name = get_best_model_name()
 
-    registry_model_name = f"{best_model_name}_aqi_model"
+    registry_model_name = (
+        f"{best_model_name}_aqi_model"
+    )
 
-    print(f"[INFO] Best model: {registry_model_name}")
+    print(
+        f"[INFO] Best model: {registry_model_name}"
+    )
 
-    # Get models safely
-    models = mr.get_models(registry_model_name)
+    # Get latest version
 
-    if not models:
-        raise ValueError(
-            f"No models found in registry for {registry_model_name}"
-        )
+    model = mr.get_model(
+        registry_model_name
+    )
 
-    # Select latest version
-    model = max(models, key=lambda m: m.version)
-
-    print(f"[SUCCESS] Found model v{model.version}")
+    print(
+        f"[SUCCESS] Found model "
+        f"v{model.version}"
+    )
 
     # Clean old downloads
+
     if DOWNLOAD_DIR.exists():
-        print("[INFO] Cleaning old downloads...")
+
+        print(
+            "[INFO] Cleaning old downloads..."
+        )
+
         shutil.rmtree(DOWNLOAD_DIR)
 
-    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    DOWNLOAD_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    # Download model
-    print("\n[INFO] Downloading model artifacts...")
+    # Download
 
-    path = model.download(str(DOWNLOAD_DIR))
+    print(
+        "\n[INFO] Downloading model artifacts..."
+    )
 
-    print(f"\n[SUCCESS] Model downloaded → {path}")
+    path = model.download(
+        local_path=str(DOWNLOAD_DIR)
+    )
+
+    print(
+        f"\n[SUCCESS] Model downloaded → {path}"
+    )
 
     return path
 
