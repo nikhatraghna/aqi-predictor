@@ -1,186 +1,147 @@
+"""Feature engineering pipeline for PM2.5 prediction."""
 
 import os
 import sys
 
-# Add project root to Python path
-sys.path.append(
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../..")
-    )
-)
-
+sys.path.append(os.path.abspath("../.."))
 import pandas as pd
 import numpy as np
 
 from src.data_pipeline.preprocess import preprocess_data
 from src.data_pipeline.validate_data import validate_data
 
-# ─────────────────────────────────────────
-# PATHS
-# ─────────────────────────────────────────
-
 WEATHER_PATH = "data/raw/islamabad_historical_weather.parquet"
-
-AQI_PATH = "data/raw/islamabad_historical_air_quality.parquet"
-
-OUTPUT_PATH = "data/processed/islamabad_features.parquet"
+AQI_PATH     = "data/raw/islamabad_historical_air_quality.parquet"
+OUTPUT_PATH  = "data/processed/islamabad_features.parquet"
 
 
-# ─────────────────────────────────────────
-# LOAD DATA
-# ─────────────────────────────────────────
+def load_data() -> tuple:
+    """Load raw weather and AQI parquet files.
 
-def load_data():
-
-    print("\n[INFO] Loading datasets...\n")
-
+    Returns:
+        Tuple of (weather_df, aqi_df).
+    """
+    print("\n[INFO] Loading datasets...")
     weather_df = pd.read_parquet(WEATHER_PATH)
-
-    aqi_df = pd.read_parquet(AQI_PATH)
-
-    print(f"[INFO] Weather shape: {weather_df.shape}")
-    print(f"[INFO] AQI shape    : {aqi_df.shape}")
-
+    aqi_df     = pd.read_parquet(AQI_PATH)
+    print(f"[INFO] Weather shape : {weather_df.shape}")
+    print(f"[INFO] AQI shape     : {aqi_df.shape}")
     return weather_df, aqi_df
 
 
-# ─────────────────────────────────────────
-# MERGE DATASETS
-# ─────────────────────────────────────────
+def merge_datasets(weather_df: pd.DataFrame, aqi_df: pd.DataFrame) -> pd.DataFrame:
+    """Merge AQI and weather on datetime.
 
-def merge_datasets(weather_df, aqi_df):
+    Args:
+        weather_df: Weather DataFrame.
+        aqi_df:     AQI DataFrame.
 
-    print("\n[INFO] Merging datasets...\n")
-
-    df = pd.merge(
-        aqi_df,
-        weather_df,
-        on="datetime",
-        how="inner"
-    )
-
+    Returns:
+        Merged DataFrame sorted by datetime.
+    """
+    print("\n[INFO] Merging datasets...")
+    df = pd.merge(aqi_df, weather_df, on="datetime", how="inner")
     df = df.sort_values("datetime").reset_index(drop=True)
-
-    print(f"[INFO] Merged shape: {df.shape}")
-
+    print(f"[INFO] Merged shape  : {df.shape}")
     return df
 
 
-# ─────────────────────────────────────────
-# LAG FEATURES
-# ─────────────────────────────────────────
+def create_lag_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Create lag features for pm25.
 
-def create_lag_features(df):
+    Uses .shift(n) so each lag only contains PAST values.
+    lag_1 = pm25 one hour ago — safe at prediction time.
 
-    print("\n[INFO] Creating lag features...\n")
+    Args:
+        df: Input DataFrame sorted by datetime.
 
-    lags = [1, 3, 6, 12, 24]
-
-    for lag in lags:
-
-        df[f"pm25_lag_{lag}"] = df["pm25"].shift(lag)
-
+    Returns:
+        DataFrame with lag columns added.
+    """
+    print("\n[INFO] Creating lag features...")
+    for lag in [1, 3, 6, 12, 24]:
+        df[f"pm25_lag_{lag}"] = df["pm25"].shift(lag)  # ✅ safe — pure past values
     print("[INFO] Lag features created.")
-
     return df
 
 
-# ─────────────────────────────────────────
-# ROLLING WINDOW FEATURES
-# ─────────────────────────────────────────
+def create_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Create rolling mean features for pm25.
 
-def create_rolling_features(df):
+    CRITICAL: .shift(1) is applied BEFORE .rolling() so the
+    current row's pm25 value is never included in the window.
+    Without shift(1), the rolling mean leaks the current target.
 
-    print("\n[INFO] Creating rolling features...\n")
+    Only mean features are kept — std features were removed
+    because they had low importance and contributed to overfitting.
 
-    windows = [3, 6, 12, 24]
+    Args:
+        df: Input DataFrame sorted by datetime.
 
-    for window in windows:
-
+    Returns:
+        DataFrame with rolling mean columns added.
+    """
+    print("\n[INFO] Creating rolling features...")
+    for window in [6, 12, 24]:
         df[f"pm25_roll_mean_{window}"] = (
             df["pm25"]
+            .shift(1)           # ✅ exclude current row before rolling
             .rolling(window=window)
             .mean()
         )
-
-        df[f"pm25_roll_std_{window}"] = (
-            df["pm25"]
-            .rolling(window=window)
-            .std()
-        )
-
+    # Note: roll_mean_3, roll_std_* removed — caused leakage/overfitting
     print("[INFO] Rolling features created.")
-
     return df
 
 
-# ─────────────────────────────────────────
-# TIME FEATURES
-# ─────────────────────────────────────────
+def create_time_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Create time-based features from datetime column.
 
-def create_time_features(df):
+    Args:
+        df: Input DataFrame with datetime column.
 
-    print("\n[INFO] Creating time features...\n")
-
-    df["hour"] = df["datetime"].dt.hour
-
+    Returns:
+        DataFrame with time feature columns added.
+    """
+    print("\n[INFO] Creating time features...")
+    df["hour"]        = df["datetime"].dt.hour
     df["day_of_week"] = df["datetime"].dt.dayofweek
+    df["month"]       = df["datetime"].dt.month
+    df["day"]         = df["datetime"].dt.day
 
-    df["month"] = df["datetime"].dt.month
-
-    df["day"] = df["datetime"].dt.day
-
-    # Cyclical Encoding
+    # Cyclical encoding — prevents model treating 23→0 as a big jump
     df["hour_sin"] = np.sin(2 * np.pi * df["hour"] / 24)
-
     df["hour_cos"] = np.cos(2 * np.pi * df["hour"] / 24)
-
     print("[INFO] Time features created.")
-
     return df
 
 
-# ─────────────────────────────────────────
-# FINAL CLEANING
-# ─────────────────────────────────────────
+def final_clean(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows with any NaN values (from lag/rolling warm-up period)."""
 
-def final_clean(df):
-
-    print("\n[INFO] Final cleaning...\n")
+    print("\n[INFO] Final cleaning...")
 
     before = len(df)
-
     df = df.dropna().reset_index(drop=True)
-
     after = len(df)
 
-    print(f"[INFO] Removed rows with NaNs: {before - after}")
-
-    print(f"[INFO] Final dataset shape: {df.shape}")
+    print(f"[INFO] Removed {before - after} warm-up rows (lag/rolling NaNs)")
+    print(f"[INFO] Final shape   : {df.shape}")
 
     return df
 
 
-# ─────────────────────────────────────────
-# SAVE FEATURES
-# ─────────────────────────────────────────
+def save_features(df: pd.DataFrame) -> None:
+    """Save feature dataset to parquet.
 
-def save_features(df):
-
-    print("\n[INFO] Saving feature dataset...\n")
-
+    Args:
+        df: Final feature DataFrame.
+    """
     os.makedirs("data/processed", exist_ok=True)
-
     df.to_parquet(OUTPUT_PATH, index=False)
-
     print(f"[INFO] Saved → {OUTPUT_PATH}")
-
     print(f"[INFO] File size: {os.path.getsize(OUTPUT_PATH) / 1024:.1f} KB")
 
-
-# ─────────────────────────────────────────
-# MAIN PIPELINE
-# ─────────────────────────────────────────
 
 if __name__ == "__main__":
 
@@ -188,37 +149,21 @@ if __name__ == "__main__":
     print(" AQI FEATURE ENGINEERING")
     print("==============================")
 
-    # Load datasets
     weather_df, aqi_df = load_data()
 
-    # Preprocess datasets
     weather_df = preprocess_data(weather_df)
+    aqi_df     = preprocess_data(aqi_df)
 
-    aqi_df = preprocess_data(aqi_df)
-
-    # Validate datasets
     weather_df = validate_data(weather_df)
+    aqi_df     = validate_data(aqi_df)
 
-    aqi_df = validate_data(aqi_df)
-
-    # Merge
     df = merge_datasets(weather_df, aqi_df)
-
-    # Feature Engineering
     df = create_lag_features(df)
-
     df = create_rolling_features(df)
-
     df = create_time_features(df)
-
-    # Final Cleaning
     df = final_clean(df)
-
-    # Save
     save_features(df)
 
     print("\n[SUCCESS] Feature engineering pipeline completed.")
-
     print("\n[INFO] Final Dataset Preview:\n")
-
     print(df.head())

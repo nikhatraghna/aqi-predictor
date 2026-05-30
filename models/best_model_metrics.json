@@ -1,6 +1,6 @@
 {
-    "model": "xgboost",
-    "mae": 1.1278,
-    "rmse": 1.6485,
-    "r2": 0.9881
+    "model": "random_forest",
+    "mae": 3.3637,
+    "rmse": 4.8551,
+    "r2": 0.9255
 }

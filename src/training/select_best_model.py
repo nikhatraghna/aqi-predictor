@@ -4,21 +4,82 @@ import json
 import shutil
 from pathlib import Path
 
-BEST_MODEL_FILE = "models/best_model.json"
-MODEL_DIR       = Path("models/saved_models")
-BEST_MODEL_DIR  = Path("models/best_model")
+# ─────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────
+
+METRICS_DIR = Path("models/metrics")
+BEST_MODEL_FILE = Path("models/best_model.json")
+
+MODEL_DIR = Path("models/saved_models")
+BEST_MODEL_DIR = Path("models/best_model")
 
 BEST_MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
-# Load best model name
-with open(BEST_MODEL_FILE, "r") as f:
-    best_model = json.load(f)["best_model"]
+# ─────────────────────────────────────
+# LOAD METRICS (ONLY CLEAN FILES)
+# ─────────────────────────────────────
 
-print(f"\n[SUCCESS] Best model selected: {best_model}")
+metrics_files = list(METRICS_DIR.glob("*_advanced.json"))
+
+metrics = {}
+
+print("\n[INFO] Model comparison:")
+
+for file in metrics_files:
+    with open(file, "r") as f:
+        data = json.load(f)
+
+    model_name = file.stem.replace("_advanced", "")
+
+    # ── SAFE RMSE EXTRACTION ──
+    if "test" in data and "rmse" in data["test"]:
+        rmse = data["test"]["rmse"]
+
+    elif "rmse" in data:
+        rmse = data["rmse"]
+
+    else:
+        print(f"[WARNING] Skipping {file.stem} (no RMSE found)")
+        continue
+
+    metrics[model_name] = rmse
+
+    print(f"{model_name:<15} RMSE={rmse:.4f}")
+
+# ─────────────────────────────────────
+# SELECT BEST MODEL
+# ─────────────────────────────────────
+
+best_model = min(metrics, key=metrics.get)
+best_rmse = metrics[best_model]
+
+print("\n==============================")
+print(" BEST MODEL")
+print("==============================")
+
+print(f"Model : {best_model}")
+print(f"RMSE  : {best_rmse:.4f}")
+
+# ─────────────────────────────────────
+# SAVE BEST MODEL INFO
+# ─────────────────────────────────────
+
+with open(BEST_MODEL_FILE, "w") as f:
+    json.dump({
+        "best_model": best_model,
+        "rmse": best_rmse
+    }, f, indent=4)
+
+print("\n[SUCCESS] Best model saved → models/best_model.json")
+
+# ─────────────────────────────────────
+# COPY ARTIFACTS
+# ─────────────────────────────────────
 
 MODEL_MAP = {
     "ridge": {
-        "model":  MODEL_DIR / "ridge_model.pkl",
+        "model": MODEL_DIR / "ridge_model.pkl",
         "scaler": MODEL_DIR / "ridge_scaler.pkl",
     },
     "random_forest": {
@@ -34,11 +95,11 @@ MODEL_MAP = {
 
 selected = MODEL_MAP[best_model]
 
-# --- Copy model ---
+# copy model
 shutil.copy(selected["model"], BEST_MODEL_DIR / "model.pkl")
 print(f"[SUCCESS] Model copied → {BEST_MODEL_DIR / 'model.pkl'}")
 
-# --- Copy scaler only if it exists (Ridge only) ---
+# copy scaler only for ridge
 scaler_src = selected.get("scaler")
 scaler_dst = BEST_MODEL_DIR / "scaler.pkl"
 
@@ -46,9 +107,10 @@ if scaler_src and Path(scaler_src).exists():
     shutil.copy(scaler_src, scaler_dst)
     print(f"[SUCCESS] Scaler copied → {scaler_dst}")
 else:
-    # Remove stale scaler from a previous Ridge run
     if scaler_dst.exists():
         scaler_dst.unlink()
-        print("[INFO] Removed stale scaler (not needed for this model).")
+        print("[INFO] Removed old scaler (not needed for this model).")
 
-print("\n[SUCCESS] Best model artifacts prepared.")
+print("\n[SUCCESS] Best model deployment complete.")
+
+

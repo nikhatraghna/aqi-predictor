@@ -1,210 +1,166 @@
-# src/training/train_xgboost_advanced.py
+"""XGBoost — anti-overfit config, leakage-free CV, early stopping, R²-gap overfitting verdict."""
 
-import os
-import json
-import joblib
+import os, json, joblib
+import numpy as np
 import pandas as pd
 from pathlib import Path
-
 from xgboost import XGBRegressor
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
-
-
-# ─────────────────────────────────────
-# SAVE METRICS
-# ─────────────────────────────────────
-
-def save_metrics(name, metrics_dict):
-    path = Path("models/metrics")
-    path.mkdir(parents=True, exist_ok=True)
-
-    with open(path / f"{name}.json", "w") as f:
-        json.dump(metrics_dict, f, indent=4)
-
-    print(f"[SUCCESS] Metrics saved → {path / f'{name}.json'}")
-
-
-# ─────────────────────────────────────
-# CONFIG
-# ─────────────────────────────────────
+from src.feature_engineering.feature_selector import select_for_tree_models
 
 FEATURE_PATH = "data/processed/islamabad_features.parquet"
-MODEL_DIR = "models/saved_models"
-
-TARGET_COLUMN = "pm25"
-TEST_SIZE = 7 * 24  # 7 days
+MODEL_DIR    = "models/saved_models"
+TARGET       = "pm25"
 RANDOM_STATE = 42
+K_FEATURES   = 10
+N_SPLITS     = 3
 
-
-# ─────────────────────────────────────
-# LOAD DATA
-# ─────────────────────────────────────
-
-print("\n[INFO] Loading data...")
-df = pd.read_parquet(FEATURE_PATH)
-
-# ─────────────────────────────────────
-# FEATURES
-# ─────────────────────────────────────
-
-DROP_COLUMNS = ["datetime", "pm25"]
-
-X = df.drop(columns=DROP_COLUMNS)
-y = df[TARGET_COLUMN]
-
-print(f"[INFO] Features shape: {X.shape}")
-
-# ─────────────────────────────────────
-# TRAIN / TEST SPLIT
-# ─────────────────────────────────────
-
-X_train = X[:-TEST_SIZE]
-X_test = X[-TEST_SIZE:]
-
-y_train = y[:-TEST_SIZE]
-y_test = y[-TEST_SIZE:]
-
-print(f"[INFO] Train shape: {X_train.shape}")
-print(f"[INFO] Test shape : {X_test.shape}")
-
-# ─────────────────────────────────────
-# TIME SERIES CV + GRID SEARCH
-# ─────────────────────────────────────
-
-print("\n[INFO] Running TimeSeries CV + GridSearch...")
-
-tscv = TimeSeriesSplit(n_splits=5)
-
-param_grid = {
-    "n_estimators": [200, 300],
-    "learning_rate": [0.03, 0.05, 0.1],
-    "max_depth": [4, 6, 8],
-    "subsample": [0.7, 0.8],
-    "colsample_bytree": [0.7, 0.8],
-}
-
-xgb = XGBRegressor(
-    objective="reg:squarederror",
-    random_state=RANDOM_STATE,
-    n_jobs=-1,
+XGB_PARAMS = dict(
+    n_estimators          = 4000,
+    learning_rate         = 0.02,
+    max_depth             = 2,
+    subsample             = 0.6,
+    colsample_bytree      = 0.5,
+    min_child_weight      = 20,
+    reg_alpha             = 3.0,
+    reg_lambda            = 15.0,
+    gamma                 = 1.0,
+    early_stopping_rounds = 50,
+    objective             = "reg:squarederror",
+    random_state          = RANDOM_STATE,
+    n_jobs                = -1,
 )
 
-grid = GridSearchCV(
-    xgb,
-    param_grid,
-    cv=tscv,
-    scoring="r2",
-    n_jobs=-1,
-    verbose=1
-)
 
-grid.fit(X_train, y_train)
+def rmse(a, b): return float(mean_squared_error(a, b) ** 0.5)
 
-best_model = grid.best_estimator_
+def get_metrics(y, p):
+    return {"mae": round(float(mean_absolute_error(y, p)), 4),
+            "rmse": round(rmse(y, p), 4),
+            "r2": round(float(r2_score(y, p)), 4)}
 
-print(f"[SUCCESS] Best params: {grid.best_params_}")
+def classify_gap(g):
+    """Overfitting verdict based on train-val R² gap (the robust metric)."""
+    if g <= 0.03: return "EXCELLENT ✅ (no meaningful overfitting)"
+    if g <= 0.05: return "VERY GOOD ✅"
+    if g <= 0.10: return "ACCEPTABLE ⚠️"
+    return "OVERFITTING ❌"
 
-# ─────────────────────────────────────
-# TRAIN PERFORMANCE
-# ─────────────────────────────────────
+def save_metrics(m):
+    p = Path("models/metrics"); p.mkdir(parents=True, exist_ok=True)
+    with open(p / "xgboost.json", "w") as f: json.dump(m, f, indent=4)
+    print(f"[SUCCESS] Metrics saved → {p}/xgboost.json")
 
-train_preds = best_model.predict(X_train)
 
-train_mae = mean_absolute_error(y_train, train_preds)
-train_rmse = mean_squared_error(y_train, train_preds) ** 0.5
-train_r2 = r2_score(y_train, train_preds)
+def main():
+    print("\n==============================\n XGBOOST (ANTI-OVERFIT)\n==============================")
 
-# ─────────────────────────────────────
-# TEST PERFORMANCE
-# ─────────────────────────────────────
+    # ── Load + sort ──────────────────────────────────────────────────────
+    df = pd.read_parquet(FEATURE_PATH)
+    df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
+    df = df.sort_values("datetime").reset_index(drop=True)
+    assert df["datetime"].is_monotonic_increasing, "Data not sorted chronologically"
 
-test_preds = best_model.predict(X_test)
+    drop_cols = ["datetime", TARGET]
+    all_cols = [c for c in df.columns if c not in drop_cols]
+    df = df.dropna(subset=all_cols + [TARGET]).reset_index(drop=True)
+    X_all, y_all = df[all_cols], df[TARGET]
 
-test_mae = mean_absolute_error(y_test, test_preds)
-test_rmse = mean_squared_error(y_test, test_preds) ** 0.5
-test_r2 = r2_score(y_test, test_preds)
+    # ── Holdout test ─────────────────────────────────────────────────────
+    TEST_SIZE = max(int(0.15 * len(X_all)), 24)
+    dev_end = len(X_all) - TEST_SIZE
+    X_dev, y_dev = X_all.iloc[:dev_end], y_all.iloc[:dev_end]
+    X_test, y_test = X_all.iloc[dev_end:], y_all.iloc[dev_end:]
+    print(f"[INFO] Development : {len(X_dev)} rows  |  Final test : {len(X_test)} rows")
 
-# ─────────────────────────────────────
-# RESULTS
-# ─────────────────────────────────────
+    # ── Leakage-free CV (nested feature selection + per-fold early stop) ──
+    print(f"\n[INFO] {N_SPLITS}-fold TimeSeriesSplit CV (nested feature selection)...")
+    tscv = TimeSeriesSplit(n_splits=N_SPLITS)
+    folds = []
+    for fold, (tr, va) in enumerate(tscv.split(X_dev), 1):
+        Xtr, ytr = X_dev.iloc[tr], y_dev.iloc[tr]
+        Xva, yva = X_dev.iloc[va], y_dev.iloc[va]
+        feats = select_for_tree_models(Xtr, ytr, k=K_FEATURES)
+        m = XGBRegressor(**XGB_PARAMS)
+        m.fit(Xtr[feats], ytr, eval_set=[(Xva[feats], yva)], verbose=False)
+        tr_pred, va_pred = m.predict(Xtr[feats]), m.predict(Xva[feats])
+        tr_r, va_r = rmse(ytr, tr_pred), rmse(yva, va_pred)
+        folds.append({
+            "fold": fold,
+            "train_rmse": round(tr_r, 4), "val_rmse": round(va_r, 4),
+            "train_r2": round(float(r2_score(ytr, tr_pred)), 4),
+            "val_r2":   round(float(r2_score(yva, va_pred)), 4),
+            "ratio": round(va_r / tr_r, 4),
+            "best_iter": int(m.best_iteration),
+        })
+        print(f"  Fold {fold}: train R²={folds[-1]['train_r2']:.3f}  "
+              f"val R²={folds[-1]['val_r2']:.3f}  "
+              f"val RMSE={va_r:.3f}  ratio={va_r/tr_r:.2f}x  best_iter={m.best_iteration}")
 
-print("\n==============================")
-print(" XGBOOST FINAL RESULTS")
-print("==============================")
+    # ── Overfitting verdict via R² gap (robust); RMSE ratio informational ─
+    mean_train_r2 = float(np.mean([f["train_r2"] for f in folds]))
+    mean_val_r2   = float(np.mean([f["val_r2"]   for f in folds]))
+    r2_gap        = mean_train_r2 - mean_val_r2
+    median_ratio  = float(np.median([f["ratio"] for f in folds]))
 
-print("\n--- TRAIN ---")
-print(f"MAE  : {train_mae:.2f}")
-print(f"RMSE : {train_rmse:.2f}")
-print(f"R²   : {train_r2:.4f}")
+    print("\n------------------------------")
+    print(f"  CV mean train R²   : {mean_train_r2:.4f}")
+    print(f"  CV mean val   R²   : {mean_val_r2:.4f}")
+    print(f"  R² gap (train-val) : {r2_gap:.4f}  →  {classify_gap(r2_gap)}")
+    print(f"  RMSE ratio (median): {median_ratio:.2f}x  (informational only — "
+          f"inflated by very low train RMSE)")
 
-print("\n--- TEST ---")
-print(f"MAE  : {test_mae:.2f}")
-print(f"RMSE : {test_rmse:.2f}")
-print(f"R²   : {test_r2:.4f}")
+    # ── Final production model (early stop on dev tail) ──────────────────
+    print("\n[INFO] Final model on full development set...")
+    FEATURE_COLS = select_for_tree_models(X_dev, y_dev, k=K_FEATURES)
+    print(f"[INFO] Final features ({len(FEATURE_COLS)}): {FEATURE_COLS}")
+    inner = max(int(0.15 * len(X_dev)), 24)
+    Xtr_f, Xva_f = X_dev[FEATURE_COLS].iloc[:-inner], X_dev[FEATURE_COLS].iloc[-inner:]
+    ytr_f, yva_f = y_dev.iloc[:-inner], y_dev.iloc[-inner:]
+    model = XGBRegressor(**XGB_PARAMS)
+    model.fit(Xtr_f, ytr_f, eval_set=[(Xva_f, yva_f)], verbose=False)
+    print(f"[INFO] Best iteration: {model.best_iteration} (ceiling {XGB_PARAMS['n_estimators']})")
+    print("[SUCCESS] Early stopping triggered ✅" if model.best_iteration < XGB_PARAMS["n_estimators"] - 1
+          else "[WARNING] Early stopping never triggered")
 
-# Overfitting check
-gap = train_r2 - test_r2
-print(f"\n[INFO] Overfitting gap: {gap:.4f}")
+    train_m = get_metrics(y_dev,  model.predict(X_dev[FEATURE_COLS]))
+    test_m  = get_metrics(y_test, model.predict(X_test[FEATURE_COLS]))
+    final_gap = train_m["r2"] - test_m["r2"]
+    print(f"\n  Final TRAIN : MAE={train_m['mae']}  RMSE={train_m['rmse']}  R²={train_m['r2']}")
+    print(f"  Final TEST  : MAE={test_m['mae']}  RMSE={test_m['rmse']}  R²={test_m['r2']}")
+    print(f"  Test R² gap (train-test): {final_gap:.4f}  →  {classify_gap(final_gap)}")
 
-if gap > 0.1:
-    print("[WARNING] Possible overfitting detected!")
-else:
-    print("[SUCCESS] Model generalizes well.")
+    importances = pd.Series(model.feature_importances_, index=FEATURE_COLS).sort_values(ascending=False)
+    print("\nFeature Importance:")
+    for feat, imp in importances.items():
+        print(f"  {feat:<22} {imp:.4f}  {'█' * int(imp * 100)}")
 
-# ─────────────────────────────────────
-# SAVE METRICS
-# ─────────────────────────────────────
+    # ── Save ─────────────────────────────────────────────────────────────
+    os.makedirs(MODEL_DIR, exist_ok=True)
+    joblib.dump(model, f"{MODEL_DIR}/xgboost_model.pkl")
+    print(f"\n[SUCCESS] Model saved → {MODEL_DIR}/xgboost_model.pkl")
 
-metrics = {
-    "train": {
-        "mae": train_mae,
-        "rmse": train_rmse,
-        "r2": train_r2
-    },
-    "test": {
-        "mae": test_mae,
-        "rmse": test_rmse,
-        "r2": test_r2
-    },
-    "best_params": grid.best_params_
-}
+    save_metrics({
+        "cv": {
+            "mean_train_r2": round(mean_train_r2, 4),
+            "mean_val_r2":   round(mean_val_r2, 4),
+            "r2_gap":        round(r2_gap, 4),
+            "verdict":       classify_gap(r2_gap),
+            "rmse_ratio_median": round(median_ratio, 4),
+            "n_splits":      N_SPLITS,
+            "folds":         folds,
+        },
+        "train": train_m,
+        "test":  test_m,
+        "test_r2_gap": round(final_gap, 4),
+        "best_iteration": int(model.best_iteration),
+        "features": FEATURE_COLS,
+        "n_features": len(FEATURE_COLS),
+        "params": {k: v for k, v in XGB_PARAMS.items() if k != "n_jobs"},
+    })
+    print("\n[SUCCESS] XGBoost pipeline complete.")
 
-save_metrics("xgboost_advanced", metrics)
 
-# ─────────────────────────────────────
-# SAVE MODEL
-# ─────────────────────────────────────
-
-os.makedirs(MODEL_DIR, exist_ok=True)
-
-MODEL_PATH = f"{MODEL_DIR}/xgboost_model.pkl"
-joblib.dump(best_model, MODEL_PATH)
-
-print(f"[SUCCESS] Model saved → {MODEL_PATH}")
-
-# ─────────────────────────────────────
-# FEATURE IMPORTANCE
-# ─────────────────────────────────────
-
-importances = pd.Series(
-    best_model.feature_importances_,
-    index=X.columns
-).sort_values(ascending=False)
-
-print("\nTop Features:\n")
-print(importances.head(10))
-
-# ─────────────────────────────────────
-# PREVIEW
-# ─────────────────────────────────────
-
-preview = pd.DataFrame({
-    "Actual": y_test.values,
-    "Predicted": test_preds
-})
-
-print("\nPrediction Preview:\n")
-print(preview.head(10))
-
-print("\n[SUCCESS] Advanced XGBoost pipeline complete.")
+if __name__ == "__main__":
+    main()

@@ -28,6 +28,8 @@ def save_metrics(name, metrics_dict):
 # CONFIG
 # ─────────────────────────────────────
 
+from src.config.features import TARGET_COLUMN
+
 FEATURE_PATH = "data/processed/islamabad_features.parquet"
 MODEL_DIR = "models/saved_models"
 
