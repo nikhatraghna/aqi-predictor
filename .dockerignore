@@ -1,0 +1,12 @@
+.git
+.github
+__pycache__/
+*.pyc
+*.ipynb
+.ipynb_checkpoints/
+.env
+*.bak
+data/raw/
+data/interim/
+reports/shap/*.png
+notebooks/
