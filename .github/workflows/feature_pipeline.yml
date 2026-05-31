@@ -1,44 +1,20 @@
 name: Hourly Feature Pipeline
 
 on:
-  # schedule:
-  #   - cron: "0 * * * *"
   workflow_dispatch:
-
-permissions:
-  contents: write
-
-concurrency:
-  group: feature-pipeline
-  cancel-in-progress: false
 
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    env:
+      HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
+      HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Check secrets are present   # prints "set"/"MISSING", never the value
-        run: |
-          [ -z "${{ secrets.HOPSWORKS_API_KEY }}" ] && echo "HOPSWORKS_API_KEY: MISSING" || echo "HOPSWORKS_API_KEY: set"
-          [ -z "${{ secrets.HOPSWORKS_PROJECT }}" ] && echo "HOPSWORKS_PROJECT: MISSING" || echo "HOPSWORKS_PROJECT: set"
-
+      - run: pip install -r requirements.txt
       - name: Run hourly feature pipeline
-        env:
-          HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
-          HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
         run: python -m src.automation.hourly_feature_pipeline
-
-      - name: Commit updated features
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/processed/islamabad_features.parquet
-          git diff --staged --quiet || git commit -m "chore(data): hourly feature update [skip ci]"
-          git push
