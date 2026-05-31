@@ -79,13 +79,13 @@ aqi-predictor/
 ├── models/
 │   ├── best_model/          # promoted model + scaler + feature_config.json
 │   ├── saved_models/        # per-model artifacts
-│   └── .json               # comparison + best-model metadata
+│   └── \*.json              # comparison + best-model metadata
 ├── reports/drift/           # data/model drift + alert reports
 ├── src/
 │   ├── data_pipeline/       # historical + realtime ingestion
 │   ├── feature_engineering/ # feature creation + selection
 │   ├── feature_store/       # Hopsworks connection + upload
-│   ├── training/            # train_, evaluate, select_best
+│   ├── training/            # train_\*, evaluate, select_best
 │   ├── models/              # registry upload/download
 │   ├── inference/           # load_model, predict, forecast_next_3_days
 │   ├── monitoring/          # data_drift, model_drift, alerts
