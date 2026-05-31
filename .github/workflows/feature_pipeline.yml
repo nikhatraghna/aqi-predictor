@@ -1,7 +1,9 @@
 name: Hourly Feature Pipeline
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"        # every hour, on the hour (UTC)
+  workflow_dispatch:            # keep the manual trigger too
 
 jobs:
   ingest:
