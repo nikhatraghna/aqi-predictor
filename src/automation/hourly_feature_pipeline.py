@@ -195,7 +195,23 @@ def main():
     upload_new_row(new_row_df)
 
     print("\n[SUCCESS] Hourly feature pipeline complete.")
-
+def ensure_features_exist():
+    """If the local feature parquet is missing (e.g., fresh CI runner), restore from Hopsworks."""
+    if FEATURES_PATH.exists():
+        return
+    import os, hopsworks
+    api, proj = os.getenv("HOPSWORKS_API_KEY"), os.getenv("HOPSWORKS_PROJECT")
+    if not api or not proj:
+        raise FileNotFoundError(f"{FEATURES_PATH} missing and no Hopsworks creds to restore from.")
+    print("[INFO] Local features missing — restoring from Hopsworks feature group...")
+    fg = hopsworks.login(api_key_value=api, project=proj).get_feature_store() \
+                  .get_feature_group(name="aqi_features", version=1)
+    df = fg.read()
+    df["datetime"] = pd.to_datetime(df["datetime"], utc=True)
+    df = df.drop_duplicates("datetime", keep="last").sort_values("datetime").reset_index(drop=True)
+    FEATURES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(FEATURES_PATH, index=False)
+    print(f"[INFO] Restored {len(df)} rows from Hopsworks.")
 
 if __name__ == "__main__":
     main()
