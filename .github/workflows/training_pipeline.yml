@@ -1,8 +1,8 @@
 name: Daily Training Pipeline
 
 on:
-  # schedule:
-  #   - cron: "30 0 * * *"     # daily 00:30 UTC — uncomment to run on a schedule
+  schedule:
+    - cron: "30 0 * * *"        # daily at 00:30 UTC (after the hourly feature runs)
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   train:
     runs-on: ubuntu-latest
-    env:                                   # job-level → every step sees the creds
+    env:
       HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
       HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
     steps:
@@ -23,11 +23,10 @@ jobs:
           cache: "pip"
       - run: pip install -r requirements.txt
 
-      # Restore the feature dataset from the Hopsworks feature store (and append the
-      # latest hour) so the training scripts have data on this fresh runner.
+      # Restore features from Hopsworks (+ latest hour) so training has data on the fresh runner
       - name: Refresh features from Hopsworks
         run: python -m src.automation.hourly_feature_pipeline
 
-      # Retrain → evaluate → promote → forecast → monitor → upload to model registry.
+      # Retrain → evaluate → promote → forecast → monitor → upload to model registry
       - name: Run daily training pipeline
         run: python -m src.automation.daily_training_pipeline
