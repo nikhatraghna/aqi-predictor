@@ -1,10 +1,10 @@
 {
-    "model": "ridge",
-    "mae": 1.5169,
-    "rmse": 2.0964,
-    "r2": 0.9861,
-    "r2_gap": -0.0039,
-    "cv_val_r2": 0.9412,
-    "cv_gap": 0.0364,
+    "model": "xgboost",
+    "mae": 2.4835,
+    "rmse": 4.2459,
+    "r2": 0.9424,
+    "r2_gap": 0.0513,
+    "cv_val_r2": 0.9519,
+    "cv_gap": 0.041,
     "selected_by": "min_cv_gap_then_cv_val_r2"
 }
