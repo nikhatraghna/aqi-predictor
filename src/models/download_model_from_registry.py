@@ -71,14 +71,27 @@ def download_best_model():
 
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Download model
+        # Download model
     print("\n[INFO] Downloading model artifacts...")
 
     path = model.download(str(DOWNLOAD_DIR))
 
     print(f"\n[SUCCESS] Model downloaded → {path}")
 
+    # Verify expected artifacts
+    downloaded = Path(path)
+
+    for required in ("model.pkl", "feature_config.json"):
+        if not (downloaded / required).exists():
+            print(
+                f"[WARNING] '{required}' missing in download "
+                f"— registry artifact may be incomplete"
+            )
+        else:
+            print(f"[OK] {required}")
+
     return path
+
 
 
 # ─────────────────────────────────────────

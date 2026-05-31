@@ -1,86 +1,62 @@
-"""Upload BEST AQI model directly to Hopsworks Model Registry."""
+"""Upload the promoted best model (models/best_model/) to the Hopsworks Model Registry."""
 
 import json
 from pathlib import Path
-
 from src.models.hopsworks_model_registry import get_model_registry
 
-
-METRICS_DIR = Path("models/metrics")
-MODELS_DIR = Path("models/saved_models")
-
-
-# ─────────────────────────────────────────
-# FIND BEST MODEL (NO EXTRA SCRIPT)
-# ─────────────────────────────────────────
-
-def get_best_model():
-
-    best_model_name = None
-    best_r2 = -1
-
-    print("\n[INFO] Reading model metrics...")
-
-    for file in METRICS_DIR.glob("*.json"):
-
-        with open(file, "r") as f:
-            data = json.load(f)
-
-        model_name = file.stem
-
-        # support both formats safely
-        test_metrics = data.get("test", data)
-
-        r2 = test_metrics.get("r2")
-
-        if r2 is not None and r2 > best_r2:
-            best_r2 = r2
-            best_model_name = model_name
-
-    if best_model_name is None:
-        raise ValueError("No valid model found in metrics")
-
-    # clean suffix if exists
-    best_model_name = best_model_name.replace("_advanced", "")
-
-    return best_model_name, best_r2
+PROD_DIR          = Path("models/best_model")
+BEST_MODEL_JSON   = Path("models/best_model.json")
+BEST_METRICS_JSON = Path("models/best_model_metrics.json")
 
 
-# ─────────────────────────────────────────
-# UPLOAD BEST MODEL
-# ─────────────────────────────────────────
+def _load_json(path: Path) -> dict:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. Run evaluate_models.py + select_best_model.py first."
+        )
+    with open(path) as f:
+        return json.load(f)
+
+
+def _registry_metrics(m: dict) -> dict:
+    """Numeric metrics for the registry UI (selection criterion + accuracy)."""
+    out = {}
+    for key in ("rmse", "mae", "r2", "cv_val_r2", "cv_gap", "r2_gap"):
+        if m.get(key) is not None:
+            out[key] = float(m[key])
+    return out
+
 
 def upload_best_model():
+    if not (PROD_DIR / "model.pkl").exists():
+        raise FileNotFoundError(f"{PROD_DIR/'model.pkl'} missing. Run select_best_model.py first.")
 
-    model_name, best_r2 = get_best_model()
+    # Read the decision already made by evaluate_models.py — do NOT re-select here
+    model_name = _load_json(BEST_MODEL_JSON)["best_model"]
+    metrics    = _load_json(BEST_METRICS_JSON)
+    reg_metrics = _registry_metrics(metrics)
 
-    print(f"\n[INFO] Best model selected: {model_name} (R2={best_r2})")
-
-    model_dir = MODELS_DIR / model_name
-
-    if not model_dir.exists():
-        raise FileNotFoundError(f"Missing model dir: {model_dir}")
+    print(f"\n[INFO] Best model : {model_name}")
+    print(f"[INFO] Selected by: {metrics.get('selected_by', 'n/a')}")
+    print(f"[INFO] Metrics    : {reg_metrics}")
 
     mr = get_model_registry()
-
     hops_model = mr.python.create_model(
         name=f"{model_name}_aqi_model",
-        description="Auto-selected best AQI model",
-        metrics={"r2": float(best_r2)},
+        description=(
+            f"Auto-selected best AQI model ({model_name}); "
+            f"selected by {metrics.get('selected_by', 'n/a')}. "
+            f"Promoted from models/best_model/ with feature_config.json contract."
+        ),
+        metrics=reg_metrics,
     )
 
-    print("\n[INFO] Uploading best model...")
+    print("[INFO] Uploading promoted artifacts (model.pkl + feature_config.json [+ scaler.pkl])...")
+    hops_model.save(str(PROD_DIR), keep_original_files=True)   # keep local copy intact
 
-    hops_model.save(str(model_dir))
-
-    print("\n[SUCCESS] Best model uploaded!")
-
+    print(f"[SUCCESS] '{model_name}' uploaded → '{model_name}_aqi_model' (version {hops_model.version})")
     return hops_model
 
-
-# ─────────────────────────────────────────
-# RUN
-# ─────────────────────────────────────────
 
 if __name__ == "__main__":
     upload_best_model()
