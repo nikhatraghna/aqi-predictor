@@ -1,6 +1,7 @@
-"""Model drift monitoring — recent performance vs the model's baseline (contract-driven)."""
+"""Model drift monitoring — recent performance vs baseline, with rolling history for trends."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -13,12 +14,13 @@ from src.inference.load_model import load_feature_config
 FEATURES_PATH = "data/processed/islamabad_features.parquet"
 REPORT_DIR    = Path("reports/drift")
 REPORT_PATH   = REPORT_DIR / "model_drift_report.json"
+HISTORY_PATH  = REPORT_DIR / "model_drift_history.parquet"
+DATA_DRIFT    = REPORT_DIR / "data_drift_report.json"
 TARGET        = "pm25"
 RECENT_WINDOW = 72
 
-# Drift thresholds = degradation vs baseline RMSE
-WARN_PCT  = 0.20   # +20% worse → WARNING
-DRIFT_PCT = 0.40   # +40% worse → DRIFT
+WARN_PCT  = 0.20
+DRIFT_PCT = 0.40
 
 
 def load_recent_batch() -> pd.DataFrame:
@@ -32,7 +34,6 @@ def load_recent_batch() -> pd.DataFrame:
 
 
 def get_baseline_rmse() -> float:
-    """Baseline = the model's held-out test RMSE, recorded in the contract."""
     test = load_feature_config().get("test_metrics") or {}
     rmse = test.get("rmse")
     if rmse is None:
@@ -42,7 +43,7 @@ def get_baseline_rmse() -> float:
 
 def evaluate_model(df: pd.DataFrame) -> dict:
     y_true = df[TARGET].values
-    y_pred = predict(df)   # contract-driven: selects features + scales if required
+    y_pred = predict(df)
     return {
         "mae":  round(float(mean_absolute_error(y_true, y_pred)), 4),
         "rmse": round(float(np.sqrt(mean_squared_error(y_true, y_pred))), 4),
@@ -61,11 +62,33 @@ def detect_drift(current_rmse: float, baseline_rmse: float):
     return status, round(degradation * 100, 2)
 
 
+def latest_max_psi():
+    """Pull the worst PSI from the data-drift report (for the PSI trend); None if absent."""
+    if not DATA_DRIFT.exists():
+        return None
+    try:
+        recs = json.load(open(DATA_DRIFT))
+        psis = [r.get("psi") for r in recs if isinstance(r, dict) and r.get("psi") is not None]
+        return max(psis) if psis else None
+    except Exception:
+        return None
+
+
 def save_report(report: dict):
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
     with open(REPORT_PATH, "w") as f:
         json.dump(report, f, indent=4)
     print(f"\n[SUCCESS] Report saved → {REPORT_PATH}")
+
+
+def append_history(row: dict):
+    """Append one monitoring run to the rolling history parquet (powers dashboard trends)."""
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    new = pd.DataFrame([row])
+    if HISTORY_PATH.exists():
+        new = pd.concat([pd.read_parquet(HISTORY_PATH), new], ignore_index=True)
+    new.to_parquet(HISTORY_PATH, index=False)
+    print(f"[SUCCESS] History updated → {HISTORY_PATH} ({len(new)} runs)")
 
 
 def main():
@@ -99,6 +122,17 @@ def main():
         "status":               status,
     }
     save_report(report)
+
+    # ── Rolling history for dashboard trends ────────────────────────────────
+    append_history({
+        "timestamp":            datetime.now(timezone.utc).isoformat(),
+        "status":               status,
+        "rmse_degradation_pct": degradation_pct,
+        "current_rmse":         metrics["rmse"],
+        "baseline_rmse":        baseline_rmse,
+        "psi":                  latest_max_psi(),
+    })
+
     print("\n[SUCCESS] Model drift monitoring complete.")
 
 
