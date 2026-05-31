@@ -1,0 +1,12 @@
+pandas
+numpy
+scipy
+scikit-learn
+xgboost
+lightgbm
+joblib
+pyarrow
+requests
+python-dotenv
+hopsworks==4.7.*
+confluent-kafka
