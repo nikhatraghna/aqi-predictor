@@ -1,10 +1,11 @@
-"""XGBoost — anti-overfit config, leakage-free CV, early stopping, R²-gap overfitting verdict."""
+"""LightGBM — anti-overfit config, leakage-free CV, early stopping, R²-gap overfitting verdict."""
 
 import os, json, joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from xgboost import XGBRegressor
+import lightgbm as lgb
+from lightgbm import LGBMRegressor
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from src.feature_engineering.feature_selector import select_for_tree_models
@@ -16,20 +17,20 @@ RANDOM_STATE = 42
 K_FEATURES   = 10
 N_SPLITS     = 3
 
-XGB_PARAMS = dict(
-    n_estimators          = 4000,
-    learning_rate         = 0.02,
-    max_depth             = 2,
-    subsample             = 0.6,
-    colsample_bytree      = 0.5,
-    min_child_weight      = 20,
-    reg_alpha             = 3.0,
-    reg_lambda            = 15.0,
-    gamma                 = 1.0,
-    early_stopping_rounds = 50,
-    objective             = "reg:squarederror",
-    random_state          = RANDOM_STATE,
-    n_jobs                = -1,
+LGB_PARAMS = dict(
+    n_estimators      = 4000,
+    learning_rate     = 0.02,
+    max_depth         = 3,
+    num_leaves        = 7,      # ≤ 2^max_depth - 1 keeps trees shallow
+    min_child_samples = 20,
+    subsample         = 0.6,
+    subsample_freq    = 1,      # required for subsample to take effect
+    colsample_bytree  = 0.5,
+    reg_alpha         = 3.0,
+    reg_lambda        = 15.0,
+    random_state      = RANDOM_STATE,
+    n_jobs            = -1,
+    verbose           = -1,
 )
 
 
@@ -49,12 +50,19 @@ def classify_gap(g):
 
 def save_metrics(m):
     p = Path("models/metrics"); p.mkdir(parents=True, exist_ok=True)
-    with open(p / "xgboost.json", "w") as f: json.dump(m, f, indent=4)
-    print(f"[SUCCESS] Metrics saved → {p}/xgboost.json")
+    with open(p / "lightgbm.json", "w") as f: json.dump(m, f, indent=4)
+    print(f"[SUCCESS] Metrics saved → {p}/lightgbm.json")
+
+def fit_with_es(params, Xtr, ytr, Xva, yva):
+    """Fit LGBM with early stopping (callback API, version-safe for LightGBM 4.x)."""
+    m = LGBMRegressor(**params)
+    m.fit(Xtr, ytr, eval_set=[(Xva, yva)],
+          callbacks=[lgb.early_stopping(50, verbose=False), lgb.log_evaluation(0)])
+    return m
 
 
 def main():
-    print("\n==============================\n XGBOOST \n==============================")
+    print("\n==============================\n LIGHTGBM (ANTI-OVERFIT)\n==============================")
 
     # ── Load + sort ──────────────────────────────────────────────────────
     df = pd.read_parquet(FEATURE_PATH)
@@ -82,34 +90,30 @@ def main():
         Xtr, ytr = X_dev.iloc[tr], y_dev.iloc[tr]
         Xva, yva = X_dev.iloc[va], y_dev.iloc[va]
         feats = select_for_tree_models(Xtr, ytr, k=K_FEATURES)
-        m = XGBRegressor(**XGB_PARAMS)
-        m.fit(Xtr[feats], ytr, eval_set=[(Xva[feats], yva)], verbose=False)
+        m = fit_with_es(LGB_PARAMS, Xtr[feats], ytr, Xva[feats], yva)
         tr_pred, va_pred = m.predict(Xtr[feats]), m.predict(Xva[feats])
         tr_r, va_r = rmse(ytr, tr_pred), rmse(yva, va_pred)
+        best_iter = int(m.best_iteration_ or LGB_PARAMS["n_estimators"])
         folds.append({
-            "fold": fold,
-            "train_rmse": round(tr_r, 4), "val_rmse": round(va_r, 4),
+            "fold": fold, "train_rmse": round(tr_r, 4), "val_rmse": round(va_r, 4),
             "train_r2": round(float(r2_score(ytr, tr_pred)), 4),
             "val_r2":   round(float(r2_score(yva, va_pred)), 4),
-            "ratio": round(va_r / tr_r, 4),
-            "best_iter": int(m.best_iteration),
+            "ratio": round(va_r / tr_r, 4), "best_iter": best_iter,
         })
         print(f"  Fold {fold}: train R²={folds[-1]['train_r2']:.3f}  "
-              f"val R²={folds[-1]['val_r2']:.3f}  "
-              f"val RMSE={va_r:.3f}  ratio={va_r/tr_r:.2f}x  best_iter={m.best_iteration}")
+              f"val R²={folds[-1]['val_r2']:.3f}  val RMSE={va_r:.3f}  "
+              f"ratio={va_r/tr_r:.2f}x  best_iter={best_iter}")
 
-    # ── Overfitting verdict via R² gap (robust); RMSE ratio informational ─
+    # ── Overfitting verdict via R² gap; RMSE ratio informational ─────────
     mean_train_r2 = float(np.mean([f["train_r2"] for f in folds]))
     mean_val_r2   = float(np.mean([f["val_r2"]   for f in folds]))
     r2_gap        = mean_train_r2 - mean_val_r2
     median_ratio  = float(np.median([f["ratio"] for f in folds]))
-
     print("\n------------------------------")
     print(f"  CV mean train R²   : {mean_train_r2:.4f}")
     print(f"  CV mean val   R²   : {mean_val_r2:.4f}")
     print(f"  R² gap (train-val) : {r2_gap:.4f}  →  {classify_gap(r2_gap)}")
-    print(f"  RMSE ratio (median): {median_ratio:.2f}x  (informational only — "
-          f"inflated by very low train RMSE)")
+    print(f"  RMSE ratio (median): {median_ratio:.2f}x  (informational only)")
 
     # ── Final production model (early stop on dev tail) ──────────────────
     print("\n[INFO] Final model on full development set...")
@@ -118,10 +122,10 @@ def main():
     inner = max(int(0.15 * len(X_dev)), 24)
     Xtr_f, Xva_f = X_dev[FEATURE_COLS].iloc[:-inner], X_dev[FEATURE_COLS].iloc[-inner:]
     ytr_f, yva_f = y_dev.iloc[:-inner], y_dev.iloc[-inner:]
-    model = XGBRegressor(**XGB_PARAMS)
-    model.fit(Xtr_f, ytr_f, eval_set=[(Xva_f, yva_f)], verbose=False)
-    print(f"[INFO] Best iteration: {model.best_iteration} (ceiling {XGB_PARAMS['n_estimators']})")
-    print("[SUCCESS] Early stopping triggered ✅" if model.best_iteration < XGB_PARAMS["n_estimators"] - 1
+    model = fit_with_es(LGB_PARAMS, Xtr_f, ytr_f, Xva_f, yva_f)
+    best_iter = int(model.best_iteration_ or LGB_PARAMS["n_estimators"])
+    print(f"[INFO] Best iteration: {best_iter} (ceiling {LGB_PARAMS['n_estimators']})")
+    print("[SUCCESS] Early stopping triggered ✅" if best_iter < LGB_PARAMS["n_estimators"]
           else "[WARNING] Early stopping never triggered")
 
     train_m = get_metrics(y_dev,  model.predict(X_dev[FEATURE_COLS]))
@@ -134,32 +138,22 @@ def main():
     importances = pd.Series(model.feature_importances_, index=FEATURE_COLS).sort_values(ascending=False)
     print("\nFeature Importance:")
     for feat, imp in importances.items():
-        print(f"  {feat:<22} {imp:.4f}  {'█' * int(imp * 100)}")
+        print(f"  {feat:<22} {imp}")
 
-    # ── Save ─────────────────────────────────────────────────────────────
+    # ── Save model + metrics ─────────────────────────────────────────────
     os.makedirs(MODEL_DIR, exist_ok=True)
-    joblib.dump(model, f"{MODEL_DIR}/xgboost_model.pkl")
-    print(f"\n[SUCCESS] Model saved → {MODEL_DIR}/xgboost_model.pkl")
+    joblib.dump(model, f"{MODEL_DIR}/lightgbm_model.pkl")
+    print(f"\n[SUCCESS] Model saved → {MODEL_DIR}/lightgbm_model.pkl")
 
     save_metrics({
-        "cv": {
-            "mean_train_r2": round(mean_train_r2, 4),
-            "mean_val_r2":   round(mean_val_r2, 4),
-            "r2_gap":        round(r2_gap, 4),
-            "verdict":       classify_gap(r2_gap),
-            "rmse_ratio_median": round(median_ratio, 4),
-            "n_splits":      N_SPLITS,
-            "folds":         folds,
-        },
-        "train": train_m,
-        "test":  test_m,
-        "test_r2_gap": round(final_gap, 4),
-        "best_iteration": int(model.best_iteration),
-        "features": FEATURE_COLS,
-        "n_features": len(FEATURE_COLS),
-        "params": {k: v for k, v in XGB_PARAMS.items() if k != "n_jobs"},
+        "cv": {"mean_train_r2": round(mean_train_r2, 4), "mean_val_r2": round(mean_val_r2, 4),
+               "r2_gap": round(r2_gap, 4), "verdict": classify_gap(r2_gap),
+               "rmse_ratio_median": round(median_ratio, 4), "n_splits": N_SPLITS, "folds": folds},
+        "train": train_m, "test": test_m, "test_r2_gap": round(final_gap, 4),
+        "best_iteration": best_iter, "features": FEATURE_COLS, "n_features": len(FEATURE_COLS),
+        "params": {k: v for k, v in LGB_PARAMS.items() if k != "n_jobs"},
     })
-    print("\n[SUCCESS] XGBoost pipeline complete.")
+    print("\n[SUCCESS] LightGBM pipeline complete.")
 
 
 if __name__ == "__main__":

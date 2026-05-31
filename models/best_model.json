@@ -1,4 +1,3 @@
 {
-    "best_model": "xgboost",
-    "rmse": 1.6045953093808918
+    "best_model": "xgboost"
 }

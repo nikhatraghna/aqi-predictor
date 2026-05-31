@@ -1,0 +1,27 @@
+{
+    "model_name": "xgboost",
+    "target": "pm25",
+    "requires_scaling": false,
+    "features": [
+        "pm25_roll_mean_3",
+        "pm25_lag_1",
+        "pm10",
+        "no2",
+        "pm25_roll_std_3",
+        "so2",
+        "pm25_roll_std_6",
+        "pm25_lag_3",
+        "co",
+        "dust"
+    ],
+    "n_features": 10,
+    "selected_by": "cv_val_r2",
+    "cv_val_r2": 0.9485,
+    "cv_r2_gap": 0.0429,
+    "test_metrics": {
+        "mae": 2.4729,
+        "rmse": 4.202,
+        "r2": 0.9442
+    },
+    "test_r2_gap": 0.0494
+}

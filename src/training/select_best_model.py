@@ -1,116 +1,97 @@
-"""Select best AQI forecasting model and deploy to models/best_model/."""
+"""Promote the best model (selected by CV Val R²) into models/best_model/ with its inference contract."""
 
 import json
 import shutil
 from pathlib import Path
 
-# ─────────────────────────────────────
-# PATHS
-# ─────────────────────────────────────
+METRICS_DIR     = Path("models/metrics")
+SAVED_DIR       = Path("models/saved_models")
+BEST_MODEL_JSON = Path("models/best_model.json")
+PROD_DIR        = Path("models/best_model")
 
-METRICS_DIR = Path("models/metrics")
-BEST_MODEL_FILE = Path("models/best_model.json")
-
-MODEL_DIR = Path("models/saved_models")
-BEST_MODEL_DIR = Path("models/best_model")
-
-BEST_MODEL_DIR.mkdir(parents=True, exist_ok=True)
-
-# ─────────────────────────────────────
-# LOAD METRICS (ONLY CLEAN FILES)
-# ─────────────────────────────────────
-
-metrics_files = list(METRICS_DIR.glob("*_advanced.json"))
-
-metrics = {}
-
-print("\n[INFO] Model comparison:")
-
-for file in metrics_files:
-    with open(file, "r") as f:
-        data = json.load(f)
-
-    model_name = file.stem.replace("_advanced", "")
-
-    # ── SAFE RMSE EXTRACTION ──
-    if "test" in data and "rmse" in data["test"]:
-        rmse = data["test"]["rmse"]
-
-    elif "rmse" in data:
-        rmse = data["rmse"]
-
-    else:
-        print(f"[WARNING] Skipping {file.stem} (no RMSE found)")
-        continue
-
-    metrics[model_name] = rmse
-
-    print(f"{model_name:<15} RMSE={rmse:.4f}")
-
-# ─────────────────────────────────────
-# SELECT BEST MODEL
-# ─────────────────────────────────────
-
-best_model = min(metrics, key=metrics.get)
-best_rmse = metrics[best_model]
-
-print("\n==============================")
-print(" BEST MODEL")
-print("==============================")
-
-print(f"Model : {best_model}")
-print(f"RMSE  : {best_rmse:.4f}")
-
-# ─────────────────────────────────────
-# SAVE BEST MODEL INFO
-# ─────────────────────────────────────
-
-with open(BEST_MODEL_FILE, "w") as f:
-    json.dump({
-        "best_model": best_model,
-        "rmse": best_rmse
-    }, f, indent=4)
-
-print("\n[SUCCESS] Best model saved → models/best_model.json")
-
-# ─────────────────────────────────────
-# COPY ARTIFACTS
-# ─────────────────────────────────────
-
-MODEL_MAP = {
-    "ridge": {
-        "model": MODEL_DIR / "ridge_model.pkl",
-        "scaler": MODEL_DIR / "ridge_scaler.pkl",
-    },
-    "random_forest": {
-        "model": MODEL_DIR / "random_forest_model.pkl",
-    },
-    "xgboost": {
-        "model": MODEL_DIR / "xgboost_model.pkl",
-    },
-    "prophet": {
-        "model": MODEL_DIR / "prophet_model.pkl",
-    },
+# model name → (artifact path, needs a scaler?)
+MODEL_ARTIFACTS = {
+    "ridge":         (SAVED_DIR / "ridge_model.pkl",         True),
+    "random_forest": (SAVED_DIR / "random_forest_model.pkl", False),
+    "xgboost":       (SAVED_DIR / "xgboost_model.pkl",       False),
+    "lightgbm":      (SAVED_DIR / "lightgbm_model.pkl",      False),
+}
+METRIC_FILES = {
+    "ridge":         METRICS_DIR / "ridge.json",
+    "random_forest": METRICS_DIR / "random_forest.json",
+    "xgboost":       METRICS_DIR / "xgboost.json",
+    "lightgbm":      METRICS_DIR / "lightgbm.json",
 }
 
-selected = MODEL_MAP[best_model]
 
-# copy model
-shutil.copy(selected["model"], BEST_MODEL_DIR / "model.pkl")
-print(f"[SUCCESS] Model copied → {BEST_MODEL_DIR / 'model.pkl'}")
-
-# copy scaler only for ridge
-scaler_src = selected.get("scaler")
-scaler_dst = BEST_MODEL_DIR / "scaler.pkl"
-
-if scaler_src and Path(scaler_src).exists():
-    shutil.copy(scaler_src, scaler_dst)
-    print(f"[SUCCESS] Scaler copied → {scaler_dst}")
-else:
-    if scaler_dst.exists():
-        scaler_dst.unlink()
-        print("[INFO] Removed old scaler (not needed for this model).")
-
-print("\n[SUCCESS] Best model deployment complete.")
+def get_best_model_name() -> str:
+    if not BEST_MODEL_JSON.exists():
+        raise FileNotFoundError(f"{BEST_MODEL_JSON} not found. Run evaluate_models.py first.")
+    with open(BEST_MODEL_JSON) as f:
+        return json.load(f)["best_model"]
 
 
+def promote(name: str) -> None:
+    if name not in MODEL_ARTIFACTS:
+        raise ValueError(f"Unknown model '{name}'. Known: {list(MODEL_ARTIFACTS)}")
+    model_src, needs_scaler = MODEL_ARTIFACTS[name]
+    if not model_src.exists():
+        raise FileNotFoundError(f"Model artifact missing: {model_src}. Retrain '{name}'.")
+
+    with open(METRIC_FILES[name]) as f:
+        metrics = json.load(f)
+    features = metrics.get("features")
+    if features is None:
+        raise KeyError(f"'features' missing in {METRIC_FILES[name]}. Retrain '{name}'.")
+
+    cv = metrics.get("cv", {})
+
+    if PROD_DIR.exists():
+        shutil.rmtree(PROD_DIR)
+    PROD_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 1. Model artifact
+    shutil.copy(model_src, PROD_DIR / "model.pkl")
+    print(f"[SUCCESS] Model copied → {PROD_DIR / 'model.pkl'}")
+
+    # 2. Scaler — only for models trained on scaled inputs (Ridge)
+    if needs_scaler:
+        scaler_src = SAVED_DIR / f"{name}_scaler.pkl"
+        if not scaler_src.exists():
+            raise FileNotFoundError(f"'{name}' requires a scaler but {scaler_src} is missing.")
+        shutil.copy(scaler_src, PROD_DIR / "scaler.pkl")
+        print(f"[SUCCESS] Scaler copied → {PROD_DIR / 'scaler.pkl'}")
+
+    # 3. Inference contract — single source of truth for predict.py + dashboard
+    contract = {
+        "model_name":       name,
+        "target":           "pm25",
+        "requires_scaling": needs_scaler,
+        "features":         features,
+        "n_features":       len(features),
+        "selected_by":      "cv_val_r2",
+        "cv_val_r2":        cv.get("mean_val_r2"),
+        "cv_r2_gap":        cv.get("r2_gap"),
+        "test_metrics":     metrics.get("test"),
+        "test_r2_gap":      metrics.get("test_r2_gap"),
+    }
+    with open(PROD_DIR / "feature_config.json", "w") as f:
+        json.dump(contract, f, indent=4)
+    print(f"[SUCCESS] Contract written → {PROD_DIR / 'feature_config.json'}")
+
+
+def main():
+    print("\n==============================")
+    print(" BEST MODEL")
+    print("==============================")
+    name = get_best_model_name()
+    print(f"\n[INFO] Best model (by CV Val R²): {name}")
+    promote(name)
+    print("\n[INFO] Production artifacts:")
+    for p in sorted(PROD_DIR.iterdir()):
+        print(f"   - {p}  ({p.stat().st_size:,} bytes)")
+    print(f"\n[SUCCESS] '{name}' promoted to {PROD_DIR}/ — ready for inference.")
+
+
+if __name__ == "__main__":
+    main()
