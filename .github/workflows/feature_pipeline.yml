@@ -1,12 +1,12 @@
 name: Hourly Feature Pipeline
 
 on:
-  schedule:
-    - cron: "0 * * * *"        # every hour (UTC)
-  workflow_dispatch:            # allow manual runs
+  # schedule:
+  #   - cron: "0 * * * *"
+  workflow_dispatch:
 
 permissions:
-  contents: write               # needed to commit artifacts back
+  contents: write
 
 concurrency:
   group: feature-pipeline
@@ -23,11 +23,18 @@ jobs:
           cache: "pip"
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Check secrets are present   # prints "set"/"MISSING", never the value
+        run: |
+          [ -z "${{ secrets.HOPSWORKS_API_KEY }}" ] && echo "HOPSWORKS_API_KEY: MISSING" || echo "HOPSWORKS_API_KEY: set"
+          [ -z "${{ secrets.HOPSWORKS_PROJECT }}" ] && echo "HOPSWORKS_PROJECT: MISSING" || echo "HOPSWORKS_PROJECT: set"
+
       - name: Run hourly feature pipeline
         env:
           HOPSWORKS_API_KEY: ${{ secrets.HOPSWORKS_API_KEY }}
           HOPSWORKS_PROJECT: ${{ secrets.HOPSWORKS_PROJECT }}
         run: python -m src.automation.hourly_feature_pipeline
+
       - name: Commit updated features
         run: |
           git config user.name  "github-actions[bot]"
