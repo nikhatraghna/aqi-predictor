@@ -1,27 +1,30 @@
 {
-    "model_name": "xgboost",
+    "model_name": "ridge",
     "target": "pm25",
-    "requires_scaling": false,
+    "requires_scaling": true,
     "features": [
-        "pm25_roll_mean_3",
-        "pm25_lag_1",
         "pm10",
-        "no2",
-        "pm25_roll_std_3",
-        "so2",
-        "pm25_roll_std_6",
-        "pm25_lag_3",
         "co",
-        "dust"
+        "no2",
+        "o3",
+        "pm25_lag_1",
+        "pm25_lag_3",
+        "pm25_lag_24",
+        "pm25_roll_mean_3",
+        "pm25_roll_std_3",
+        "pm25_roll_mean_6",
+        "pm25_roll_std_6",
+        "pm25_roll_std_12",
+        "pm25_roll_mean_24"
     ],
-    "n_features": 10,
+    "n_features": 13,
     "selected_by": "cv_val_r2",
-    "cv_val_r2": 0.9485,
-    "cv_r2_gap": 0.0429,
+    "cv_val_r2": 0.9412,
+    "cv_r2_gap": 0.0364,
     "test_metrics": {
-        "mae": 2.4729,
-        "rmse": 4.202,
-        "r2": 0.9442
+        "mae": 1.5169,
+        "rmse": 2.0964,
+        "r2": 0.9861
     },
-    "test_r2_gap": 0.0494
+    "test_r2_gap": -0.0039
 }

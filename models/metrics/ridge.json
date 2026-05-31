@@ -1,52 +1,52 @@
 {
     "cv": {
-        "mean_train_r2": 0.9714,
-        "mean_val_r2": 0.9156,
-        "r2_gap": 0.0558,
-        "verdict": "ACCEPTABLE \u26a0\ufe0f",
-        "rmse_ratio_median": 0.9798,
+        "mean_train_r2": 0.9776,
+        "mean_val_r2": 0.9412,
+        "r2_gap": 0.0364,
+        "verdict": "VERY GOOD \u2705",
+        "rmse_ratio_median": 0.9896,
         "n_splits": 3,
         "folds": [
             {
                 "fold": 1,
-                "alpha": 10.0,
-                "train_rmse": 2.651,
-                "val_rmse": 5.2041,
-                "train_r2": 0.974,
-                "val_r2": 0.8427,
-                "ratio": 1.9631
+                "alpha": 50.0,
+                "train_rmse": 2.7529,
+                "val_rmse": 4.6247,
+                "train_r2": 0.9711,
+                "val_r2": 0.8778,
+                "ratio": 1.6799
             },
             {
                 "fold": 2,
                 "alpha": 0.01,
-                "train_rmse": 2.1062,
-                "val_rmse": 2.0637,
-                "train_r2": 0.9806,
+                "train_rmse": 2.0854,
+                "val_rmse": 2.0636,
+                "train_r2": 0.9807,
                 "val_r2": 0.9726,
-                "ratio": 0.9798
+                "ratio": 0.9896
             },
             {
                 "fold": 3,
-                "alpha": 100.0,
-                "train_rmse": 3.0062,
-                "val_rmse": 2.5815,
-                "train_r2": 0.9597,
-                "val_r2": 0.9316,
-                "ratio": 0.8587
+                "alpha": 0.01,
+                "train_rmse": 2.0489,
+                "val_rmse": 1.63,
+                "train_r2": 0.9809,
+                "val_r2": 0.9731,
+                "ratio": 0.7955
             }
         ]
     },
     "train": {
-        "mae": 1.3773,
-        "rmse": 1.9502,
+        "mae": 1.3665,
+        "rmse": 1.9383,
         "r2": 0.9822
     },
     "test": {
-        "mae": 1.5371,
-        "rmse": 2.1111,
-        "r2": 0.9859
+        "mae": 1.5169,
+        "rmse": 2.0964,
+        "r2": 0.9861
     },
-    "test_r2_gap": -0.0037,
+    "test_r2_gap": -0.0039,
     "best_alpha": 0.01,
     "features": [
         "pm10",
