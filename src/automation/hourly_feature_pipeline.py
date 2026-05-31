@@ -158,9 +158,7 @@ def main():
     print(" HOURLY FEATURE PIPELINE (Open-Meteo)")
     print("==============================")
 
-    if not FEATURES_PATH.exists():
-        raise FileNotFoundError(f"{FEATURES_PATH} not found. Build the historical features first.")
-
+    ensure_features_exist()
     existing = pd.read_parquet(FEATURES_PATH)
     existing["datetime"] = pd.to_datetime(existing["datetime"], utc=True)
     existing = existing.sort_values("datetime").reset_index(drop=True)
