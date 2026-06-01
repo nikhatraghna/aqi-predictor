@@ -12,6 +12,8 @@ FILES = [
     "reports/drift/data_drift_report.json", "reports/drift/model_drift_report.json",
     "reports/drift/alerts_report.json",
     "reports/shap/shap_importance.parquet",
+    "reports/drift/model_drift_history.parquet",
+
 
 ]
 BEST = Path("models/best_model")
