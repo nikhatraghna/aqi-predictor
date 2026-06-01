@@ -21,19 +21,28 @@ import os, tempfile, zipfile
 #the above line was replaced by the below block
 @st.cache_resource(show_spinner="Loading data from Hopsworks…")
 def _bootstrap_from_hopsworks():
-    """Download the dashboard bundle from Hopsworks and unzip it. Returns its root path."""
+    """Download the dashboard bundle from Hopsworks; never prompt interactively."""
     import hopsworks
-    key  = os.getenv("HOPSWORKS_API_KEY")  or st.secrets.get("HOPSWORKS_API_KEY")
-    proj = os.getenv("HOPSWORKS_PROJECT") or st.secrets.get("HOPSWORKS_PROJECT")
-    project = hopsworks.login(api_key_value=key, project=proj)
+    try:
+        secret_key  = st.secrets.get("HOPSWORKS_API_KEY")
+        secret_proj = st.secrets.get("HOPSWORKS_PROJECT")
+    except Exception:
+        secret_key = secret_proj = None
+    key  = os.getenv("HOPSWORKS_API_KEY")  or secret_key
+    proj = os.getenv("HOPSWORKS_PROJECT") or secret_proj
+
+    if not key or not proj:
+        st.error("Hopsworks credentials not found. In the app's **Settings → Secrets**, add:\n\n"
+                 'HOPSWORKS_API_KEY = "..."\nHOPSWORKS_PROJECT = "aqi_forecasting_system"')
+        st.stop()
+
+    project = hopsworks.login(api_key_value=key, project=proj)   # explicit key → no getpass prompt
     ds  = project.get_dataset_api()
     tmp = Path(tempfile.mkdtemp())
     ds.download("Resources/aqi_dashboard/dashboard_bundle.zip", local_path=str(tmp), overwrite=True)
     with zipfile.ZipFile(tmp / "dashboard_bundle.zip") as zf:
         zf.extractall(tmp / "bundle")
     return tmp / "bundle"
-
-PROJECT_ROOT = _bootstrap_from_hopsworks()
 
 PATHS = {
     "forecast":      PROJECT_ROOT / "data/processed/forecast_3days.parquet",
