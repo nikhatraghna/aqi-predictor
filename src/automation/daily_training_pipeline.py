@@ -22,7 +22,10 @@ STEPS = [
     ("Data drift",          "src.monitoring.data_drift",           False),
     ("Model drift",         "src.monitoring.model_drift",          False),
     ("Alerts",              "src.monitoring.alerts",               False),
+    ("SHAP explainability", "src.explainability.shap_explainer", False),
     ("Upload to registry",  "src.models.upload_model_to_registry", False),
+    ("Upload dashboard bundle", "src.automation.upload_dashboard_bundle", False),
+
 ]
 
 

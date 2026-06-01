@@ -10,3 +10,6 @@ requests
 python-dotenv
 hopsworks==4.7.*
 confluent-kafka
+streamlit
+altair
+shap

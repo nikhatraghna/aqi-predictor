@@ -14,9 +14,26 @@ import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+import os, tempfile, zipfile
 
 # Repo root = two levels up from src/dashboard/utils.py → paths are cwd-independent
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+#PROJECT_ROOT = Path(__file__).resolve().parents[2]
+#the above line was replaced by the below block
+@st.cache_resource(show_spinner="Loading data from Hopsworks…")
+def _bootstrap_from_hopsworks():
+    """Download the dashboard bundle from Hopsworks and unzip it. Returns its root path."""
+    import hopsworks
+    key  = os.getenv("HOPSWORKS_API_KEY")  or st.secrets.get("HOPSWORKS_API_KEY")
+    proj = os.getenv("HOPSWORKS_PROJECT") or st.secrets.get("HOPSWORKS_PROJECT")
+    project = hopsworks.login(api_key_value=key, project=proj)
+    ds  = project.get_dataset_api()
+    tmp = Path(tempfile.mkdtemp())
+    ds.download("Resources/aqi_dashboard/dashboard_bundle.zip", local_path=str(tmp), overwrite=True)
+    with zipfile.ZipFile(tmp / "dashboard_bundle.zip") as zf:
+        zf.extractall(tmp / "bundle")
+    return tmp / "bundle"
+
+PROJECT_ROOT = _bootstrap_from_hopsworks()
 
 PATHS = {
     "forecast":      PROJECT_ROOT / "data/processed/forecast_3days.parquet",
