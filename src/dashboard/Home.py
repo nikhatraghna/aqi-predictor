@@ -112,5 +112,3 @@ else:
         ).properties(height=320)
     )
     st.altair_chart(chart, use_container_width=True)
-    st.caption("Note: forecast is computed on the most recent feature rows (hindcast), "
-               "not live future data — live forecasting comes with the hourly feature pipeline.")
