@@ -1,5 +1,6 @@
 """PM2.5 → AQI category mapping boundary tests."""
-from src.inference.forecast_next_3_days import pm25_to_category
+#from src.inference.forecast_next_3_days import pm25_to_category
+from src.inference.forecast_future import pm25_to_category
 
 
 def test_category_labels():

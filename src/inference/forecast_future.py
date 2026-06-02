@@ -19,10 +19,10 @@ AQ_URL      = "https://air-quality-api.open-meteo.com/v1/air-quality"
 
 AQI_BANDS = [(0,12,"Good","🟢"),(12,35,"Moderate","🟡"),(35,55,"Unhealthy (Sensitive)","🟠"),
              (55,150,"Unhealthy","🔴"),(150,250,"Very Unhealthy","🟣"),(250,99999,"Hazardous","⛔")]
-def _cat(v):
-    for lo,hi,l,e in AQI_BANDS:
-        if lo <= v < hi: return l,e
-    return "Hazardous","⛔"
+def pm25_to_category(v):          # was: def _cat(v):
+    for lo, hi, l, e in AQI_BANDS:
+        if lo <= v < hi: return l, e
+    return "Hazardous", "⛔"
 
 
 def fetch_forecast_exog() -> pd.DataFrame:
@@ -89,7 +89,8 @@ def main():
             X = scaler.transform(X)
         yhat = float(model.predict(X)[0])
         pm.append(yhat)                              # feed prediction forward (recursive)
-        lbl, emo = _cat(yhat)
+       # lbl, emo = _cat(yhat)
+        lbl, emo = pm25_to_category(yhat)
         rows.append({"hour": i+1, "datetime": pd.Timestamp(ts),
                      "predicted_pm25": round(yhat, 2), "category": lbl, "status": emo})
 
