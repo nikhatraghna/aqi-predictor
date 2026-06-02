@@ -1,52 +1,52 @@
 {
     "cv": {
-        "mean_train_r2": 0.9715,
-        "mean_val_r2": 0.915,
-        "r2_gap": 0.0565,
-        "verdict": "ACCEPTABLE \u26a0\ufe0f",
-        "rmse_ratio_median": 0.9842,
+        "mean_train_r2": 0.9786,
+        "mean_val_r2": 0.9294,
+        "r2_gap": 0.0492,
+        "verdict": "VERY GOOD \u2705",
+        "rmse_ratio_median": 0.9821,
         "n_splits": 3,
         "folds": [
             {
                 "fold": 1,
                 "alpha": 10.0,
                 "train_rmse": 2.6433,
-                "val_rmse": 5.2071,
+                "val_rmse": 5.1975,
                 "train_r2": 0.9742,
-                "val_r2": 0.8416,
-                "ratio": 1.9699
+                "val_r2": 0.8424,
+                "ratio": 1.9663
             },
             {
                 "fold": 2,
                 "alpha": 0.01,
-                "train_rmse": 2.1022,
-                "val_rmse": 2.0691,
+                "train_rmse": 2.1019,
+                "val_rmse": 2.0642,
                 "train_r2": 0.9806,
-                "val_r2": 0.9725,
-                "ratio": 0.9842
+                "val_r2": 0.9724,
+                "ratio": 0.9821
             },
             {
                 "fold": 3,
-                "alpha": 100.0,
-                "train_rmse": 3.0042,
-                "val_rmse": 2.599,
-                "train_r2": 0.9597,
-                "val_r2": 0.9309,
-                "ratio": 0.8651
+                "alpha": 0.01,
+                "train_rmse": 2.0585,
+                "val_rmse": 1.635,
+                "train_r2": 0.981,
+                "val_r2": 0.9735,
+                "ratio": 0.7943
             }
         ]
     },
     "train": {
-        "mae": 1.3756,
-        "rmse": 1.9484,
+        "mae": 1.3759,
+        "rmse": 1.9476,
         "r2": 0.9823
     },
     "test": {
-        "mae": 1.5165,
-        "rmse": 2.0998,
-        "r2": 0.9859
+        "mae": 1.4992,
+        "rmse": 2.0858,
+        "r2": 0.9865
     },
-    "test_r2_gap": -0.0036,
+    "test_r2_gap": -0.0042,
     "best_alpha": 0.01,
     "features": [
         "pm10",

@@ -16,12 +16,12 @@
     ],
     "n_features": 10,
     "selected_by": "cv_val_r2",
-    "cv_val_r2": 0.9519,
-    "cv_r2_gap": 0.041,
+    "cv_val_r2": 0.9523,
+    "cv_r2_gap": 0.0406,
     "test_metrics": {
-        "mae": 2.4835,
-        "rmse": 4.2459,
-        "r2": 0.9424
+        "mae": 2.6376,
+        "rmse": 4.4932,
+        "r2": 0.9376
     },
-    "test_r2_gap": 0.0513
+    "test_r2_gap": 0.056
 }

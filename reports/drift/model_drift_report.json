@@ -1,11 +1,11 @@
 {
     "model": "xgboost",
-    "baseline_rmse": 4.2459,
+    "baseline_rmse": 4.4932,
     "current_metrics": {
-        "mae": 2.7927,
-        "rmse": 4.6835,
-        "r2": 0.9298
+        "mae": 3.1849,
+        "rmse": 5.2485,
+        "r2": 0.9131
     },
-    "rmse_degradation_pct": 10.31,
+    "rmse_degradation_pct": 16.81,
     "status": "\ud83d\udfe2 NORMAL"
 }

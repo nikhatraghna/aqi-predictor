@@ -2,61 +2,61 @@
     {
         "feature": "pm25_roll_mean_3",
         "ks_pvalue": 0.0,
-        "psi": 0.7123,
+        "psi": 0.713,
         "status": "\ud83d\udd34 DRIFT"
     },
     {
         "feature": "pm25_lag_1",
         "ks_pvalue": 0.0,
-        "psi": 0.7599,
+        "psi": 0.7884,
         "status": "\ud83d\udd34 DRIFT"
     },
     {
         "feature": "pm10",
         "ks_pvalue": 0.0,
-        "psi": 3.4035,
+        "psi": 2.4581,
         "status": "\ud83d\udd34 DRIFT"
     },
     {
         "feature": "no2",
-        "ks_pvalue": 0.228041,
-        "psi": 0.2955,
+        "ks_pvalue": 0.487854,
+        "psi": 0.2038,
         "status": "\ud83d\udfe1 WARNING"
     },
     {
         "feature": "pm25_roll_std_3",
-        "ks_pvalue": 0.633551,
-        "psi": 0.1252,
+        "ks_pvalue": 0.477913,
+        "psi": 0.1304,
         "status": "\ud83d\udfe1 WARNING"
     },
     {
         "feature": "so2",
-        "ks_pvalue": 0.017228,
-        "psi": 0.3839,
+        "ks_pvalue": 0.018379,
+        "psi": 0.3523,
         "status": "\ud83d\udd34 DRIFT"
     },
     {
         "feature": "pm25_roll_std_6",
-        "ks_pvalue": 0.007665,
-        "psi": 0.2807,
-        "status": "\ud83d\udd34 DRIFT"
+        "ks_pvalue": 0.176341,
+        "psi": 0.182,
+        "status": "\ud83d\udfe1 WARNING"
     },
     {
         "feature": "pm25_lag_3",
         "ks_pvalue": 0.0,
-        "psi": 0.7255,
+        "psi": 0.7836,
         "status": "\ud83d\udd34 DRIFT"
     },
     {
         "feature": "co",
-        "ks_pvalue": 6e-06,
-        "psi": 2.6589,
+        "ks_pvalue": 2e-05,
+        "psi": 2.5371,
         "status": "\ud83d\udd34 DRIFT"
     },
     {
         "feature": "dust",
         "ks_pvalue": 0.0,
-        "psi": 3.1076,
+        "psi": 3.1037,
         "status": "\ud83d\udd34 DRIFT"
     }
 ]
