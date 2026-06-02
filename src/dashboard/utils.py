@@ -125,6 +125,12 @@ def load_features():
     df=_read_parquet(PATHS["features"])
     if df is not None and "datetime" in df.columns: df["datetime"]=pd.to_datetime(df["datetime"])
     return df
+@st.cache_data(ttl=300)
+def load_hindcast():
+    df = _read_parquet(PROJECT_ROOT / "data/processed/hindcast_3days.parquet")
+    if df is not None and "datetime" in df.columns:
+        df["datetime"] = pd.to_datetime(df["datetime"])
+    return df
 
 @st.cache_data(ttl=300)
 def load_model_metrics(): return _read_json(PATHS["model_metrics"])

@@ -13,6 +13,7 @@ FILES = [
     "reports/drift/alerts_report.json",
     "reports/shap/shap_importance.parquet",
     "reports/drift/model_drift_history.parquet",
+    "data/processed/hindcast_3days.parquet",
 
 
 ]

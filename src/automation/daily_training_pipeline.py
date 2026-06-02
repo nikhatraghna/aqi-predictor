@@ -18,7 +18,10 @@ STEPS = [
     ("Train LightGBM",      "src.training.train_lightgbm",         True),
     ("Evaluate models",     "src.training.evaluate_models",        True),
     ("Promote best model",  "src.training.select_best_model",      True),
-    ("3-day forecast",      "src.inference.forecast_next_3_days",  False),
+   # ("3-day forecast",      "src.inference.forecast_next_3_days",  False),
+    ("72h forward forecast", "src.inference.forecast_future", False),
+    ("72h backtest",         "src.inference.forecast_next_3_days",  False),
+
     ("Data drift",          "src.monitoring.data_drift",           False),
     ("Model drift",         "src.monitoring.model_drift",          False),
     ("Alerts",              "src.monitoring.alerts",               False),
