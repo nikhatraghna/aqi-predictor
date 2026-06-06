@@ -77,7 +77,7 @@ pts = base.mark_circle(size=60).encode(
     tooltip=tooltip)
 st.altair_chart(
     (line + pts).properties(height=360).interactive(bind_y=False),
-    use_container_width=True)
+    width='stretch')
 
 from utils import load_hindcast
 hb = load_hindcast()
@@ -91,13 +91,13 @@ if hb is not None and not hb.empty:
             y=alt.Y("pm25:Q", title="PM2.5 (µg/m³)"),
             color=alt.Color("series:N", title=None,
                             scale=alt.Scale(range=["#38bdf8", "#f59e0b"]))
-        ).properties(height=300), use_container_width=True)
+        ).properties(height=300), width='stretch')
     mae = (hb["actual_pm25"] - hb["predicted_pm25"]).abs().mean()
     st.caption(f"Backtest MAE: {mae:.2f} µg/m³ — how closely the model tracked the last 72 observed hours.")
 # ── Hourly table + export ───────────────────────────────────────────────────
 st.markdown("#### Hourly table")
 cols = [c for c in ["datetime", "predicted_pm25", "category", "status"] if c in fc.columns]
-st.dataframe(fc[cols], hide_index=True, use_container_width=True,
+st.dataframe(fc[cols], hide_index=True, width='stretch',
              column_config={"predicted_pm25": st.column_config.NumberColumn("PM2.5 (µg/m³)", format="%.1f"),
                             "datetime": st.column_config.DatetimeColumn("Time", format="MMM D, HH:mm")})
 st.download_button("⬇️ Download forecast CSV", fc[cols].to_csv(index=False).encode(),

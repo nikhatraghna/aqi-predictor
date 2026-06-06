@@ -25,15 +25,26 @@ def pm25_to_category(v):          # was: def _cat(v):
     return "Hazardous", "⛔"
 
 
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+def _session():
+    s = requests.Session()
+    retry = Retry(total=4, backoff_factor=2,                 # waits 2s,4s,8s,16s
+                  status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])
+    s.mount("https://", HTTPAdapter(max_retries=retry))
+    return s
+
 def fetch_forecast_exog() -> pd.DataFrame:
-    """Future hourly weather + co-pollutants from Open-Meteo forecast endpoints."""
-    w = requests.get(WEATHER_URL, params={"latitude":LAT,"longitude":LON,
+    s = _session()
+    w = s.get(WEATHER_URL, params={"latitude":LAT,"longitude":LON,
         "hourly":["temperature_2m","relative_humidity_2m","precipitation","surface_pressure",
                   "wind_speed_10m","wind_direction_10m","cloud_cover","weather_code"],
-        "timezone":"Asia/Karachi","wind_speed_unit":"ms","forecast_days":4}, timeout=60); w.raise_for_status()
-    a = requests.get(AQ_URL, params={"latitude":LAT,"longitude":LON,
+        "timezone":"Asia/Karachi","wind_speed_unit":"ms","forecast_days":4}, timeout=30); w.raise_for_status()
+    a = s.get(AQ_URL, params={"latitude":LAT,"longitude":LON,
         "hourly":["pm10","carbon_monoxide","nitrogen_dioxide","sulphur_dioxide","ozone",
-                  "aerosol_optical_depth","dust"],"timezone":"Asia/Karachi","forecast_days":4}, timeout=60); a.raise_for_status()
+                  "aerosol_optical_depth","dust"],"timezone":"Asia/Karachi","forecast_days":4}, timeout=30); a.raise_for_status()
     wh, ah = w.json()["hourly"], a.json()["hourly"]
     dfw = pd.DataFrame({"datetime":pd.to_datetime(wh["time"]),"temperature":wh["temperature_2m"],
         "humidity":wh["relative_humidity_2m"],"precipitation":wh["precipitation"],"pressure":wh["surface_pressure"],
@@ -45,7 +56,6 @@ def fetch_forecast_exog() -> pd.DataFrame:
     m = pd.merge(dfa, dfw, on="datetime", how="inner")
     m["datetime"] = pd.to_datetime(m["datetime"]).dt.tz_localize("UTC")
     return m
-
 
 def main():
     cfg = load_feature_config()

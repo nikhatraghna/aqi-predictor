@@ -10,10 +10,4 @@ requests
 python-dotenv
 hopsworks==4.7.*
 confluent-kafka
-streamlit
-altair
-shap
-
-plotly
-requests
-protobuf==4.25.9
+matplotlib

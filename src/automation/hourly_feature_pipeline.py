@@ -17,6 +17,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -35,8 +37,19 @@ TIME_COLS        = {"hour", "day_of_week", "month", "day", "hour_sin", "hour_cos
 
 
 # ── Fetch ────────────────────────────────────────────────────────────────────
+def _session():
+    """requests session with retries + backoff for transient API timeouts/5xx."""
+    s = requests.Session()
+    retry = Retry(total=4, backoff_factor=2,                       # waits 2s, 4s, 8s, 16s
+                  status_forcelist=[429, 500, 502, 503, 504], allowed_methods=["GET"])
+    s.mount("https://", HTTPAdapter(max_retries=retry))
+    return s
+
+
+# ── Fetch ────────────────────────────────────────────────────────────────────
 def fetch_open_meteo() -> pd.DataFrame:
-    """Fetch recent weather + air quality and merge on datetime."""
+    """Fetch recent weather + air quality and merge on datetime (retry-resilient)."""
+    s = _session()
     w_params = {
         "latitude": ISLAMABAD_LAT, "longitude": ISLAMABAD_LON,
         "hourly": ["temperature_2m", "relative_humidity_2m", "precipitation",
@@ -51,8 +64,8 @@ def fetch_open_meteo() -> pd.DataFrame:
                    "sulphur_dioxide", "ozone", "aerosol_optical_depth", "dust"],
         "timezone": "Asia/Karachi", "past_days": 1, "forecast_days": 1,
     }
-    wr = requests.get(WEATHER_URL, params=w_params, timeout=60); wr.raise_for_status()
-    ar = requests.get(AQ_URL,      params=a_params, timeout=60); ar.raise_for_status()
+    wr = s.get(WEATHER_URL, params=w_params, timeout=30); wr.raise_for_status()
+    ar = s.get(AQ_URL,      params=a_params, timeout=30); ar.raise_for_status()
     wh, ah = wr.json()["hourly"], ar.json()["hourly"]
 
     df_w = pd.DataFrame({
@@ -80,7 +93,6 @@ def fetch_open_meteo() -> pd.DataFrame:
     })
 
     merged = pd.merge(df_a, df_w, on="datetime", how="inner")
-    # Normalize to UTC-aware to match parquet convention
     merged["datetime"] = pd.to_datetime(merged["datetime"]).dt.tz_localize("UTC")
     return merged
 

@@ -66,7 +66,7 @@ st.altair_chart(
                  alt.Tooltip("importance:Q", title="Importance", format=".4f"),
                  alt.Tooltip("pct:Q", title="Share", format=".1%")],
     ).properties(height=28 * len(topk) + 50),
-    use_container_width=True)
+    width='stretch')
 
 # ── Cumulative importance ───────────────────────────────────────────────────
 st.markdown("#### Cumulative importance")
@@ -81,7 +81,7 @@ st.altair_chart(
                  alt.Tooltip("feature:N", title="Feature added"),
                  alt.Tooltip("cumulative:Q", title="Cumulative", format=".1%")],
     ).properties(height=300).interactive(bind_x=False),
-    use_container_width=True)
+    width='stretch')
 
 # ── Family summary + export ─────────────────────────────────────────────────
 st.markdown("#### Importance by feature family")
@@ -93,10 +93,10 @@ st.altair_chart(
         tooltip=[alt.Tooltip("family:N", title="Family"),
                  alt.Tooltip("pct:Q", title="Share", format=".1%")],
     ).properties(height=200),
-    use_container_width=True)
+    width='stretch')
 
 with st.expander("Full importance table"):
-    st.dataframe(imp, hide_index=True, use_container_width=True,
+    st.dataframe(imp, hide_index=True, width='stretch',
                  column_config={"importance": st.column_config.NumberColumn(format="%.5f"),
                                 "pct": st.column_config.NumberColumn("share", format="%.2f%%")})
     st.download_button("⬇️ Download CSV", imp.to_csv(index=False).encode(),

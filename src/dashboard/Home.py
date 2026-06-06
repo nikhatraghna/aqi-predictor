@@ -61,7 +61,7 @@ with c2:
     if metrics:
         mdf = pd.DataFrame(metrics)
         show_cols = [c for c in ["Model", "RMSE", "R2", "R2_gap", "CV_Val_R2", "CV_Gap"] if c in mdf.columns]
-        st.dataframe(mdf[show_cols], hide_index=True, use_container_width=True)
+        st.dataframe(mdf[show_cols], hide_index=True, width='stretch')
     else:
         st.write("No comparison yet. Run `evaluate_models.py`.")
     st.markdown('</div>', unsafe_allow_html=True)
@@ -111,4 +111,4 @@ else:
             tooltip=["datetime:T", "predicted_pm25:Q", "category:N"],
         ).properties(height=320)
     )
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width='stretch')

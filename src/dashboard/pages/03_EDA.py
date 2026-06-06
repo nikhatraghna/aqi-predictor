@@ -61,7 +61,7 @@ st.altair_chart(
         tooltip=[alt.Tooltip("datetime:T", title="Time", format="%b %d %H:%M"),
                  alt.Tooltip("series:N"), alt.Tooltip("value:Q", format=".1f")],
     ).properties(height=300).interactive(bind_y=False),
-    use_container_width=True)
+    width='stretch')
 
 # ── AQI category distribution ───────────────────────────────────────────────
 st.markdown("#### AQI category distribution")
@@ -79,7 +79,7 @@ st.altair_chart(
         color=alt.Color("color:N", scale=None, legend=None),
         tooltip=["category:N", "count:Q"],
     ).properties(height=280),
-    use_container_width=True)
+    width='stretch')
 
 # ── Diurnal & weekday ────────────────────────────────────────────────────────
 col_a, col_b = st.columns(2)
@@ -90,7 +90,7 @@ with col_a:
         alt.Chart(view).mark_boxplot(extent="min-max", color="#38bdf8").encode(
             x=alt.X("hour:O", title="Hour of day"),
             y=alt.Y("pm25:Q", title="PM2.5 (µg/m³)")).properties(height=300),
-        use_container_width=True)
+        width='stretch')
 with col_b:
     st.markdown("#### Weekday average")
     view["weekday"] = view["datetime"].dt.day_name()
@@ -100,7 +100,7 @@ with col_b:
         alt.Chart(wk).mark_bar(color="#5eead4", cornerRadiusEnd=3).encode(
             x=alt.X("weekday:N", sort=wd_order, title=None),
             y=alt.Y("pm25:Q", title="Mean PM2.5")).properties(height=300),
-        use_container_width=True)
+        width='stretch')
 
 # ── Correlation & distribution ──────────────────────────────────────────────
 col_c, col_d = st.columns(2)
@@ -117,14 +117,14 @@ with col_c:
                 y=alt.Y("feature:N", sort="-x", title=None),
                 tooltip=["feature:N", alt.Tooltip("abs_corr:Q", format=".2f")],
             ).properties(height=320),
-            use_container_width=True)
+            width='stretch')
 with col_d:
     st.markdown("#### PM2.5 distribution")
     st.altair_chart(
         alt.Chart(view).mark_bar(color="#38bdf8", opacity=0.8).encode(
             x=alt.X("pm25:Q", bin=alt.Bin(maxbins=40), title="PM2.5 (µg/m³)"),
             y=alt.Y("count()", title="Count")).properties(height=320),
-        use_container_width=True)
+        width='stretch')
 
 # ── Feature family summary ──────────────────────────────────────────────────
 st.markdown("#### Engineered feature families")
@@ -136,4 +136,4 @@ st.altair_chart(
         x=alt.X("count:Q", title="Number of features"),
         y=alt.Y("family:N", sort="-x", title=None),
         tooltip=["family:N", "count:Q"]).properties(height=220),
-    use_container_width=True)
+    width='stretch')

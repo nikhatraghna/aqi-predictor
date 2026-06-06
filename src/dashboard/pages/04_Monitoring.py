@@ -72,7 +72,7 @@ if rmse_deg is not None:
         tooltip=[alt.Tooltip("value:Q", format=".2f")])
     rules = alt.Chart(pd.DataFrame({"t": [20, 40], "label": ["WARNING", "DRIFT"]})).mark_rule(
         strokeDash=[4, 4], color="#9fb0c0").encode(x="t:Q")
-    st.altair_chart((bar + rules).properties(height=120), use_container_width=True)
+    st.altair_chart((bar + rules).properties(height=120), width='stretch')
     st.caption("Dashed lines: 20% → WARNING, 40% → DRIFT (relative to baseline test RMSE).")
 else:
     st.info("No model-drift performance metrics available yet.")
@@ -98,9 +98,9 @@ if dd:
         ref = alt.Chart(pd.DataFrame({"t": [0.2]})).mark_rule(
             strokeDash=[4, 4], color="#D7263D").encode(x="t:Q")
         st.altair_chart((chart + ref).properties(height=max(240, 26 * len(ddf))),
-                        use_container_width=True)
+                        width='stretch')
     else:
-        st.dataframe(ddf, hide_index=True, use_container_width=True)
+        st.dataframe(ddf, hide_index=True, width='stretch')
 else:
     st.info("No data-drift report available.")
 
@@ -116,13 +116,13 @@ if hist is not None and not hist.empty and "timestamp" in hist.columns:
             alt.Chart(hist).mark_line(point=True, color="#f59e0b").encode(
                 x=alt.X("timestamp:T", title=None),
                 y=alt.Y("rmse_degradation_pct:Q", title="RMSE degradation %")).properties(height=240),
-            use_container_width=True)
+            width='stretch')
     if "psi" in hist.columns:
         cols[1].altair_chart(
             alt.Chart(hist).mark_line(point=True, color="#5eead4").encode(
                 x=alt.X("timestamp:T", title=None),
                 y=alt.Y("psi:Q", title="PSI")).properties(height=240),
-            use_container_width=True)
+            width='stretch')
 else:
     st.info("History tracking not enabled yet. Trends appear once the monitoring pipeline "
             "runs on a schedule and appends to `reports/drift/model_drift_history.parquet`.")
