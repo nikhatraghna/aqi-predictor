@@ -9,9 +9,12 @@ selection, to serving (API + dashboard), drift monitoring, and scheduled retrain
 ![Docker Build](https://github.com/nikhatraghna/aqi-predictor/actions/workflows/docker.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11-blue.svg)
 
-**Note on the forecast:** the 3-day output is currently a *hindcast* (it scores the most
-recent 72 feature rows), not a true forward forecast. True multi-step forecasting is on the
-Roadmap below.
+**🔗 Live dashboard:** https://aqi-predictor-c3vmiz3nznbzrpnspitjaa.streamlit.app
+
+**Forecasting:** the system produces a **true 72-hour forward forecast** (`forecast_future.py`)
+— it pulls Open-Meteo's numerical weather forecast as exogenous input and feeds predicted
+PM2.5 lags forward recursively — **plus** a separate **backtest** (`forecast_next_3_days.py`)
+that scores predictions against the most recent 72 actual hours.
 
 ---
 
@@ -25,7 +28,7 @@ Roadmap below.
                                         ▼
     daily_training_pipeline:
        restore features → train 4 models → CV evaluate → select best
-       → promote (feature_config.json) → forecast → drift → alerts
+       → promote (feature_config.json) → forward forecast → backtest → drift → alerts
                 │                                   │
                 ▼                                   ▼
        Hopsworks Model Registry            models/best_model/  (model + contract)
@@ -33,7 +36,7 @@ Roadmap below.
                                                      ▼
                                           Serving:
                                             • FastAPI  (/predict, /forecast)
-                                            • Streamlit dashboard (5 pages)
+                                            • Streamlit dashboard (5 pages, hosted)
 
     AQICN + OpenWeather ····▶ live "current conditions" panel (dashboard, display-only)
 
@@ -46,9 +49,10 @@ Hopsworks Model Registry. CI is stateless and reproduces state from Hopsworks.
 
 - **Hourly feature pipeline** — Open-Meteo ingestion + lag/rolling/time features → feature store.
 - **Daily training pipeline** — 4 models, leakage-free `TimeSeriesSplit` CV, anti-overfit configs, auto-select + promote.
-- **Contract-driven inference** — each model ships a `feature_config.json` (features, scaling flag, metrics), so swapping the winning model needs zero code changes.
+- **True forward forecasting** — recursive 72-hour forecast driven by Open-Meteo's weather forecast, plus a backtest against recent actuals.
+- **Contract-driven inference** — the promoted model ships a `feature_config.json` (features, scaling flag, metrics), so swapping the winning model needs zero code changes.
 - **Drift monitoring** — KS + PSI data drift, baseline-relative model drift, alerts + retraining flag.
-- **Two surfaces** — a 5-page Streamlit dashboard and a 6-endpoint FastAPI service.
+- **Two surfaces** — a hosted 5-page Streamlit dashboard and a 6-endpoint FastAPI service.
 - **Full automation** — both pipelines scheduled on GitHub Actions.
 
 ---
@@ -74,18 +78,21 @@ Hopsworks Model Registry. CI is stateless and reproduces state from Hopsworks.
     │   ├── best_model/          # promoted model + scaler + feature_config.json (contract)
     │   ├── saved_models/        # per-model artifacts
     │   └── *.json               # model comparison + best-model metadata
-    ├── reports/drift/           # data/model drift + alert reports
+    ├── reports/
+    │   ├── drift/               # data/model drift + alert reports
+    │   └── shap/                # SHAP importances (+ summary plot)
     ├── src/
     │   ├── data_pipeline/       # historical + realtime ingestion
     │   ├── feature_engineering/ # feature creation + selection
     │   ├── feature_store/       # Hopsworks connection + upload
     │   ├── training/            # train_*, evaluate_models, select_best_model
     │   ├── models/              # registry upload/download
-    │   ├── inference/           # load_model, predict, forecast_next_3_days
+    │   ├── inference/           # load_model, predict, forecast_future, forecast_next_3_days
     │   ├── monitoring/          # data_drift, model_drift, alerts
+    │   ├── explainability/      # shap_explainer (+ lime_explainer)
     │   ├── api/                 # fastapi_app
     │   ├── dashboard/           # Streamlit Home + pages/
-    │   └── automation/          # hourly_feature_pipeline, daily_training_pipeline
+    │   └── automation/          # hourly_feature_pipeline, daily_training_pipeline, upload_dashboard_bundle
     ├── tests/                   # pytest smoke tests
     ├── .github/workflows/       # feature_pipeline, training_pipeline, tests, docker
     ├── Dockerfile
@@ -107,7 +114,9 @@ Four models are trained and compared with **nested feature selection inside a 3-
 
 **Selection metric:** smallest **train↔validation R² gap** (most stable generalization),
 tie-broken by highest CV validation R². The winner is promoted to `models/best_model/`
-with its inference contract and uploaded to the Hopsworks Model Registry.
+with its inference contract and uploaded to the Hopsworks Model Registry. (The models are
+near-tied on this metric, so the champion can change between runs — Ridge was selected in
+the latest run.)
 
 Overfitting is judged by the **R² gap** (≤0.05 = healthy), not the RMSE ratio.
 
@@ -142,8 +151,11 @@ Create a `.env` in the repo root (never commit it):
     # Full daily loop: train → evaluate → promote → forecast → monitor → register
     python -m src.automation.daily_training_pipeline
 
-    # Inference / monitoring
-    python -m src.inference.forecast_next_3_days
+    # Inference
+    python -m src.inference.forecast_future        # true 72h forward forecast
+    python -m src.inference.forecast_next_3_days   # backtest vs recent actuals
+
+    # Monitoring
     python -m src.monitoring.alerts
 
     # Dashboard (Home · Forecast · Explanations · EDA · Monitoring)
@@ -158,7 +170,7 @@ Create a `.env` in the repo root (never commit it):
 |--------|------|-------------|
 | GET | `/` | health + loaded model |
 | GET | `/model` | model name, metrics, features |
-| GET | `/forecast` | latest 3-day PM2.5 forecast |
+| GET | `/forecast` | latest 72-hour forward PM2.5 forecast |
 | POST | `/predict` | predict for supplied feature rows |
 | GET | `/monitoring` | latest drift / alert status |
 | GET | `/live` | live AQICN + OpenWeather snapshot |
@@ -178,7 +190,7 @@ Create a `.env` in the repo root (never commit it):
 | Workflow | Schedule (UTC) | Action |
 |----------|----------------|--------|
 | feature_pipeline.yml | hourly `0 * * * *` | restore features → append latest hour → upload to feature store |
-| training_pipeline.yml | daily `30 0 * * *` | refresh features → retrain → promote → forecast → monitor → upload to model registry |
+| training_pipeline.yml | daily `30 0 * * *` | refresh features → retrain → promote → forecast → monitor → upload to registry + dashboard bundle |
 | tests.yml | on push / PR | run pytest |
 | docker.yml | on push | build the Docker image |
 
@@ -188,10 +200,11 @@ Both data pipelines are **stateless**: they restore state from Hopsworks, so no 
 
 ## 🗺️ Roadmap
 
-- **True multi-step forecasting** — forecast-specific model on forward-knowable features + a weather-forecast feed (replaces the hindcast).
+- **Probabilistic forecasts** — quantile / conformal prediction for calibrated uncertainty bands.
+- **Champion/challenger gate** — explicit statistical test on promotion to remove run-to-run selection instability.
 - **Multi-city** support (Rawalpindi, Lahore, Karachi).
-- **Hosted dashboard** reading directly from Hopsworks.
 - **Auto-retraining** wired to the monitoring `retrain_recommended` flag.
+- **Alert delivery** to Slack / email (currently console-only).
 
 ---
 
@@ -199,4 +212,4 @@ Both data pipelines are **stateless**: they restore state from Hopsworks, so no 
 
 - **Source consistency:** the model is trained and served on Open-Meteo data; AQICN/OpenWeather feed only the live dashboard panel.
 - **Feature store as source of truth:** CI restores features from Hopsworks rather than committing parquet files.
-- **Honest evaluation:** leakage-free nested CV, R²-gap overfitting check, and a clearly-labeled hindcast.
+- **Honest evaluation:** leakage-free nested CV and an R²-gap overfitting check, with a true forward forecast reported alongside a clearly-labeled backtest.
