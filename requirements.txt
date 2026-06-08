@@ -11,3 +11,4 @@ python-dotenv
 hopsworks==4.7.*
 confluent-kafka
 matplotlib
+shap
