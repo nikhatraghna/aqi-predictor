@@ -1,4 +1,5 @@
-"""Compare the 4 trained models; select best by smallest CV gap, tie-break highest CV Val R²."""
+"""Compare the 4 trained models; select best by lowest test RMSE among models with a
+healthy CV gap (<= 0.05), tie-break highest CV Val R²."""
 
 import json
 from pathlib import Path
@@ -14,9 +15,11 @@ MODEL_FILES = {
     "lightgbm":      METRICS_DIR / "lightgbm.json",
 }
 
-# Selection policy: most stable model first (smallest gap), break ties by best CV accuracy.
-SORT_COLS = ["CV_Gap", "CV_Val_R2"]
-SORT_ASC  = [True,     False]      # CV_Gap ascending, CV_Val_R2 descending
+# Selection policy: discard overfitting models (CV gap > GAP_THRESHOLD), then pick the
+# most accurate survivor — lowest test RMSE, tie-break highest CV Val R² (stability).
+GAP_THRESHOLD = 0.05
+SORT_COLS = ["RMSE", "CV_Val_R2"]
+SORT_ASC  = [True,    False]       # RMSE ascending, CV_Val_R2 descending
 
 
 def load_metrics() -> pd.DataFrame:
@@ -51,20 +54,27 @@ def load_metrics() -> pd.DataFrame:
 
 
 def select_best_model(df: pd.DataFrame) -> dict:
-    """Select best model: smallest CV gap first, tie-break by highest CV Val R²."""
-    candidates = df.dropna(subset=["CV_Gap", "CV_Val_R2"])
+    """Best = lowest test RMSE among models with a healthy CV gap (<= GAP_THRESHOLD),
+    tie-broken by highest CV Val R²."""
+    candidates = df.dropna(subset=["CV_Gap", "RMSE"])
     if candidates.empty:
         raise ValueError("No models expose CV metrics. Retrain so each metrics file has a 'cv' block.")
-    best = candidates.sort_values(by=SORT_COLS, ascending=SORT_ASC).iloc[0]
+
+    # 1) keep only models that generalize (no overfitting)
+    healthy = candidates[candidates["CV_Gap"] <= GAP_THRESHOLD]
+    pool    = healthy if not healthy.empty else candidates       # fallback if none qualify
+
+    # 2) among them, pick best accuracy (RMSE), tie-break by CV stability
+    best = pool.sort_values(by=SORT_COLS, ascending=SORT_ASC).iloc[0]
     return {
         "model":       best["Model"],
         "mae":         float(best["MAE"]),
         "rmse":        float(best["RMSE"]),
         "r2":          float(best["R2"]),
-        "r2_gap":      None if pd.isna(best["R2_gap"]) else float(best["R2_gap"]),
-        "cv_val_r2":   float(best["CV_Val_R2"]),
+        "r2_gap":      None if pd.isna(best["R2_gap"])    else float(best["R2_gap"]),
+        "cv_val_r2":   None if pd.isna(best["CV_Val_R2"]) else float(best["CV_Val_R2"]),
         "cv_gap":      float(best["CV_Gap"]),
-        "selected_by": "min_cv_gap_then_cv_val_r2",
+        "selected_by": "min_rmse_then_cv_val_r2_among_healthy",
     }
 
 
@@ -89,26 +99,28 @@ def main():
     if df.empty:
         raise ValueError("No metrics found. Train at least one model first.")
 
-    # Rank by selection policy: smallest CV gap first, then highest CV Val R²
+    # Display order: best-first by the selection policy (lowest RMSE)
     df = df.sort_values(by=SORT_COLS, ascending=SORT_ASC).reset_index(drop=True)
     print("\n" + df.to_string(index=False))
 
-    print("\n[INFO] Selection: smallest CV_Gap first, tie-break highest CV_Val_R2 | "
-          "R2_gap ≤ 0.05 = no overfitting")
+    print("\n[INFO] Selection: lowest test RMSE among models with CV gap <= "
+          f"{GAP_THRESHOLD} (overfitting models excluded), tie-break highest CV_Val_R2")
     for _, r in df.iterrows():
         cvr2  = "n/a" if pd.isna(r["CV_Val_R2"]) else f"{r['CV_Val_R2']:.4f}"
         cvgap = "n/a" if pd.isna(r["CV_Gap"])    else f"{r['CV_Gap']:.4f}"
-        print(f"  {r['Model']:<15} CV_Gap={cvgap:<8} CV_Val_R2={cvr2}")
+        gate  = "" if pd.isna(r["CV_Gap"]) else (" x overfit" if r["CV_Gap"] > GAP_THRESHOLD else " ok")
+        print(f"  {r['Model']:<15} RMSE={r['RMSE']:<8.4f} CV_Gap={cvgap:<8} CV_Val_R2={cvr2}{gate}")
 
     best_model = select_best_model(df)
 
     print("\n==============================")
-    print(" BEST MODEL (smallest CV gap)")
+    print(" BEST MODEL (lowest RMSE, healthy CV gap)")
     print("==============================\n")
     print(f"  Model      : {best_model['model']}")
-    print(f"  CV Gap     : {best_model['cv_gap']:.4f}   ← selection metric")
-    print(f"  CV Val R²  : {best_model['cv_val_r2']:.4f}   ← tie-breaker")
-    print(f"  Test RMSE  : {best_model['rmse']:.4f}")
+    print(f"  Test RMSE  : {best_model['rmse']:.4f}   ← selection metric")
+    cvr2 = "n/a" if best_model['cv_val_r2'] is None else f"{best_model['cv_val_r2']:.4f}"
+    print(f"  CV Val R²  : {cvr2}   ← tie-breaker")
+    print(f"  CV Gap     : {best_model['cv_gap']:.4f}   (<= {GAP_THRESHOLD} generalization gate)")
     print(f"  Test R²    : {best_model['r2']:.4f}")
 
     save_outputs(df, best_model)
