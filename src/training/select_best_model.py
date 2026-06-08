@@ -69,7 +69,7 @@ def promote(name: str) -> None:
         "requires_scaling": needs_scaler,
         "features":         features,
         "n_features":       len(features),
-        "selected_by":      "cv_val_r2",
+        "selected_by":      "min_rmse_then_cv_val_r2_among_healthy",
         "cv_val_r2":        cv.get("mean_val_r2"),
         "cv_r2_gap":        cv.get("r2_gap"),
         "test_metrics":     metrics.get("test"),
