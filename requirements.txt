@@ -12,3 +12,4 @@ hopsworks==4.7.*
 confluent-kafka
 matplotlib
 shap
+hopsworks==5.0.*
